@@ -31,6 +31,12 @@
   .chip { flex:none; border:1px solid var(--line); background:var(--card); color:var(--text); border-radius:999px; padding:6px 12px; font:inherit; font-size:14px; cursor:pointer; }
   .chip[aria-pressed="true"] { background:var(--accent); border-color:var(--accent2); color:#fff; box-shadow:0 0 14px rgba(63,162,255,.5); }
   button, .btn { border:0; border-radius:10px; padding:9px 14px; font:inherit; font-size:14px; cursor:pointer; background:linear-gradient(135deg,#2f7cf6,#3fb4ff); color:#fff; box-shadow:0 0 18px rgba(63,162,255,.35); text-decoration:none; display:inline-block; }
+  .danger { background:linear-gradient(135deg,#d92d2d,#ff4d4d); box-shadow:0 0 18px rgba(255,77,77,.4); }
+  #ask { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:16px; padding:18px; width:min(360px, calc(100vw - 32px)); box-shadow:var(--glow); }
+  #ask::backdrop { background:rgba(0,0,0,.6); }
+  #ask p { margin:0 0 12px; white-space:pre-line; }
+  #ask input { width:100%; margin-bottom:12px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg2); color:var(--text); font:inherit; font-size:16px; }
+  #ask .row { display:flex; gap:8px; justify-content:flex-end; }
   .ghost { background:rgba(15,36,88,.7); color:var(--text); border:1px solid var(--line); box-shadow:none; }
   .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   input[type=file] { display:none; }
@@ -248,10 +254,26 @@ function card(r) {
   return c;
 }
 
+// delete confirmation with a red ลบ button; resolves to null on cancel, else the typed text ('' without input)
+function ask(msg, withInput) {
+  const d = el('dialog', { id: 'ask' });
+  const inp = withInput ? el('input', { ariaLabel: 'พิมพ์ชื่อเพื่อยืนยัน' }) : null;
+  const cancel = el('button', { className: 'ghost', textContent: 'ยกเลิก', type: 'button' });
+  const ok = el('button', { className: 'danger', textContent: 'ลบ', type: 'button' });
+  d.append(el('p', { textContent: msg }), ...(inp ? [inp] : []), el('div', { className: 'row' }, cancel, ok));
+  document.body.append(d); d.showModal(); (inp || cancel).focus();
+  return new Promise(res => {
+    let val = null;
+    cancel.onclick = () => d.close();
+    ok.onclick = () => { val = inp ? inp.value : ''; d.close(); };
+    d.onclose = () => { d.remove(); res(val); };
+  });
+}
+
 function deleteButton(r) {
   const del = el('button', { className: 'trash', textContent: '🗑', title: 'ลบรายชื่อนี้', ariaLabel: 'ลบ ' + (r.name || 'รายชื่อนี้') });
   del.onclick = async () => {
-    if (!confirm(`ลบ "${r.name || 'ไม่มีชื่อ'}" ? (กู้คืนได้จากประวัติเวอร์ชันของ Google Sheet)`)) return;
+    if (await ask(`ลบ "${r.name || 'ไม่มีชื่อ'}" ?\n(กู้คืนได้จากประวัติเวอร์ชันของ Google Sheet)`) === null) return;
     try { await run('deleteContact', r.id); rows = rows.filter(x => x !== r); rerank(); render(); toast('ลบแล้ว'); }
     catch (e) { toast('ลบไม่สำเร็จ: ' + e.message); }
   };
@@ -385,7 +407,7 @@ async function loadProfiles() {
       };
       const del = el('button', { className: 'trash', textContent: '🗑', title: 'ลบโปรไฟล์', ariaLabel: 'ลบโปรไฟล์ ' + p.name });
       del.onclick = async () => {
-        const typed = prompt(`ลบโปรไฟล์ "${p.name}" และรายชื่อทั้งหมด ${p.count} คนในโปรไฟล์นี้?\nพิมพ์ชื่อโปรไฟล์เพื่อยืนยัน`);
+        const typed = await ask(`ลบโปรไฟล์ "${p.name}" และรายชื่อทั้งหมด ${p.count} คนในโปรไฟล์นี้?\nพิมพ์ชื่อโปรไฟล์เพื่อยืนยัน`, true);
         if (typed === null) return;
         try { await run('deleteProfile', p.id, typed); loadProfiles(); toast('ลบโปรไฟล์แล้ว'); } catch (e) { toast(e.message); }
       };
