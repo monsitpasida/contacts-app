@@ -52,6 +52,7 @@
   select.ch[data-v="พบตัว"] { --c:255,207,90; }
   select.ch[data-v="อื่นๆ"] { --c:180,192,210; }
   select.ch option { background:var(--card); color:var(--text); }
+  #list { overflow-x:clip; } /* slide-out animation must not add a sideways scrollbar */
   .ghost { background:rgba(15,36,88,.7); color:var(--text); border:1px solid var(--line); box-shadow:none; }
   .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   input[type=file] { display:none; }
@@ -333,9 +334,17 @@ function setSelecting(on) {
   // swap 🗑 <-> checkbox in place so the page stays where it is
   $('list').querySelectorAll(on ? '.trash' : '.pick').forEach(x => { const r = ownerOf.get(x); if (r) x.replaceWith(on ? pickBox(r) : deleteButton(r)); });
 }
+// deleted row slides right and fades, then (cards) folds its height closed before leaving the page
+function slideOut(e) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return e.remove();
+  e.style.pointerEvents = 'none'; e.style.overflow = 'hidden';
+  e.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateX(110%)', opacity: 0 }], { duration: 320, easing: 'cubic-bezier(.4,0,.8,.4)', fill: 'forwards' })
+    .finished.then(() => e.tagName === 'TR' ? null : e.animate([{ height: e.offsetHeight + 'px' }, { height: '0px', paddingTop: 0, paddingBottom: 0, borderWidth: 0 }], { duration: 200, easing: 'ease-out', fill: 'forwards' }).finished)
+    .finally(() => e.remove());
+}
 // drop deleted rows from the page in place, then refresh ranks
 function removeShown(gone) {
-  rows = rows.filter(x => { if (!gone(x)) return true; const n = shownEl.get(x); if (n) n.el.remove(); return false; });
+  rows = rows.filter(x => { if (!gone(x)) return true; const n = shownEl.get(x); if (n) slideOut(n.el); return false; });
   rerank(); rows.forEach(x => { const n = shownEl.get(x); if (n) n.refresh(); });
   const list = visible(); $('count').textContent = `${list.length} / ${rows.length} คน`;
   if (!list.length) render();
