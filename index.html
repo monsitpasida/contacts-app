@@ -41,14 +41,16 @@
   .selBar #selCount { flex:1; font-weight:600; }
   button:disabled { opacity:.45; cursor:default; }
   input.pick, .card .head input.pick, td input.pick { flex:none; width:22px; min-width:22px; height:22px; padding:0; accent-color:#ff4d4d; cursor:pointer; }
-  /* channel colors */
-  select.ch[data-v="โทรศัพท์"] { background:#7c3aed; color:#fff; border-color:#a78bfa; }
-  select.ch[data-v="LINE"] { background:#06c755; color:#fff; border-color:#4ade80; }
-  select.ch[data-v="Facebook"] { background:#1877f2; color:#fff; border-color:#60a5fa; }
-  select.ch[data-v="อีเมล"] { background:#ea580c; color:#fff; border-color:#fb923c; }
-  select.ch[data-v="พบตัว"] { background:#ffc23d; color:#06122e; border-color:#ffd77a; }
-  select.ch[data-v="อื่นๆ"] { background:#64748b; color:#fff; border-color:#94a3b8; }
-  select.ch:not([data-v=""]) { font-weight:600; }
+  /* channel colors: glass look = translucent tint + light top sheen + colored edge */
+  select.ch:not([data-v=""]) { --c:148,163,184; font-weight:600; color:rgb(var(--c)); border:1px solid rgba(var(--c),.55);
+    background:linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.02) 55%), rgba(var(--c),.18);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 0 12px rgba(var(--c),.25); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  select.ch[data-v="โทรศัพท์"] { --c:196,167,255; }
+  select.ch[data-v="LINE"] { --c:74,222,128; }
+  select.ch[data-v="Facebook"] { --c:125,180,255; }
+  select.ch[data-v="อีเมล"] { --c:253,164,95; }
+  select.ch[data-v="พบตัว"] { --c:255,207,90; }
+  select.ch[data-v="อื่นๆ"] { --c:180,192,210; }
   select.ch option { background:var(--card); color:var(--text); }
   .ghost { background:rgba(15,36,88,.7); color:var(--text); border:1px solid var(--line); box-shadow:none; }
   .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
