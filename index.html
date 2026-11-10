@@ -234,7 +234,7 @@ function card(r) {
   const date = el('input', { type: 'date', value: r.date }); bind(date, r, 'date', refresh);
 
   const field = (label, f, kind) => {
-    const i = kind === 'area' ? el('textarea', { value: r[f] }) : kind === 'channel' ? select(CHANNELS, r[f]) : el('input', { value: r[f] });
+    const i = kind === 'area' ? el('textarea', { value: r[f] }) : kind === 'channel' ? select(CHANNELS, r[f]) : el('input', { value: f === 'income' ? money(r[f]) : r[f] });
     bind(i, r, f, refresh);
     return el('label', { className: 'f' }, label, i);
   };
@@ -277,7 +277,7 @@ function tableRow(r) {
     const i = SCORES.some(([k]) => k === f) ? select(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], r[f], o => o || '–')
       : f === 'channel' ? select(CHANNELS, r[f]) : f === 'result' ? select(RESULTS, r[f] || 'ยังไม่ติดต่อ')
       : f === 'date' ? el('input', { type: 'date', value: r[f] }) : (f === 'topic' || f === 'note') ? el('textarea', { rows: 1, value: r[f] })
-      : el('input', { value: r[f] });
+      : el('input', { value: f === 'income' ? money(r[f]) : r[f] });
     i.ariaLabel = COLUMNS.find(([k]) => k === f)[1] + ' ' + (r.name || '');
     bind(i, r, f, refresh);
     return el('td', { className: 'c-' + f }, i);
@@ -285,10 +285,14 @@ function tableRow(r) {
   return el('tr', {}, ...COLUMNS.map(([f]) => cellFor(f)));
 }
 
+// plain numbers get thousands commas (30000 -> 30,000); text like "3 หมื่น" stays as typed
+const money = v => { v = String(v || '').trim(); if (!/^[\d,]+(\.\d+)?$/.test(v)) return v; const [i, d] = v.replace(/,/g, '').split('.'); return i.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+$)/g, ',') + (d ? '.' + d : ''); };
+
 // save one field on change; revert and say so if the server refuses
 function bind(input, r, f, refresh) {
   input.addEventListener('change', async () => {
-    const before = r[f], v = input.value.trim();
+    const before = r[f], v = f === 'income' ? money(input.value) : input.value.trim();
+    input.value = v;
     if (v === before) return;
     r[f] = v; rerank(); refresh();
     input.classList.add('saving');
