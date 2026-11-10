@@ -207,7 +207,9 @@ function visible() {
 const wide = matchMedia('(min-width: 900px)');
 wide.addEventListener('change', () => profile && render());
 
+const autoMore = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { autoMore.disconnect(); $('more') && $('more').click(); } }, { rootMargin: '400px' });
 function render() {
+  autoMore.disconnect();
   const list = visible(), main = $('list'), page = list.slice(0, shown);
   main.classList.toggle('tableMode', wide.matches);
   main.replaceChildren(...(wide.matches ? (page.length ? [table(page)] : []) : page.map(card)));
@@ -216,6 +218,7 @@ function render() {
     const more = el('button', { id: 'more', className: 'ghost', textContent: `แสดงเพิ่ม (${list.length - shown})` });
     more.onclick = () => { shown += PAGE; render(); };
     main.append(more);
+    autoMore.observe(more); // loads the next page when the button scrolls into view; the button stays as a fallback
   }
   $('count').textContent = `${list.length} / ${rows.length} คน`;
   if (selecting) selBar();
