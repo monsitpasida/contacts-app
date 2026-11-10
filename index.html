@@ -41,6 +41,15 @@
   .selBar #selCount { flex:1; font-weight:600; }
   button:disabled { opacity:.45; cursor:default; }
   input.pick, .card .head input.pick, td input.pick { flex:none; width:22px; min-width:22px; height:22px; padding:0; accent-color:#ff4d4d; cursor:pointer; }
+  /* channel colors */
+  select.ch[data-v="โทรศัพท์"] { background:#7c3aed; color:#fff; border-color:#a78bfa; }
+  select.ch[data-v="LINE"] { background:#06c755; color:#fff; border-color:#4ade80; }
+  select.ch[data-v="Facebook"] { background:#1877f2; color:#fff; border-color:#60a5fa; }
+  select.ch[data-v="อีเมล"] { background:#ea580c; color:#fff; border-color:#fb923c; }
+  select.ch[data-v="พบตัว"] { background:#ffc23d; color:#06122e; border-color:#ffd77a; }
+  select.ch[data-v="อื่นๆ"] { background:#64748b; color:#fff; border-color:#94a3b8; }
+  select.ch:not([data-v=""]) { font-weight:600; }
+  select.ch option { background:var(--card); color:var(--text); }
   .ghost { background:rgba(15,36,88,.7); color:var(--text); border:1px solid var(--line); box-shadow:none; }
   .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   input[type=file] { display:none; }
@@ -232,6 +241,12 @@ function contactLinks(contact) {
   }).filter(Boolean);
 }
 
+// channel dropdown colored by its value (colors in CSS: select.ch[data-v=...])
+function chSelect(value) {
+  const s = select(CHANNELS, value); s.classList.add('ch');
+  const tint = () => { s.dataset.v = s.value; }; tint(); s.addEventListener('change', tint);
+  return s;
+}
 function select(opts, value, labelFor) {
   const s = el('select');
   for (const o of opts) s.append(el('option', { value: o, textContent: labelFor ? labelFor(o) : o || '—' }));
@@ -256,7 +271,7 @@ function card(r) {
   const date = el('input', { type: 'date', value: r.date }); bind(date, r, 'date', refresh);
 
   const field = (label, f, kind) => {
-    const i = kind === 'area' ? el('textarea', { value: r[f] }) : kind === 'channel' ? select(CHANNELS, r[f]) : el('input', { value: f === 'income' ? money(r[f]) : r[f] });
+    const i = kind === 'area' ? el('textarea', { value: r[f] }) : kind === 'channel' ? chSelect(r[f]) : el('input', { value: f === 'income' ? money(r[f]) : r[f] });
     if (f === 'note') grow(i);
     bind(i, r, f, refresh);
     return el('label', { className: 'f' }, label, i);
@@ -354,7 +369,7 @@ function tableRow(r) {
     if (f === 'total') return tot;
     if (!f) return el('td', {}, selecting ? pickBox(r) : deleteButton(r));
     const i = SCORES.some(([k]) => k === f) ? select(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], r[f], o => o || '–')
-      : f === 'channel' ? select(CHANNELS, r[f]) : f === 'result' ? select(RESULTS, r[f] || 'ยังไม่ติดต่อ')
+      : f === 'channel' ? chSelect(r[f]) : f === 'result' ? select(RESULTS, r[f] || 'ยังไม่ติดต่อ')
       : f === 'date' ? el('input', { type: 'date', value: r[f] }) : (f === 'topic' || f === 'note') ? el('textarea', { rows: 1, value: r[f] })
       : el('input', { value: f === 'income' ? money(r[f]) : r[f] });
     if (f === 'note') grow(i);
@@ -381,7 +396,7 @@ function bind(input, r, f, refresh) {
       Object.assign(r, saved, { rank: r.rank }); refresh();
       toast('บันทึกแล้ว ✓');
     } catch (e) {
-      r[f] = before; input.value = before || ''; rerank(); refresh();
+      r[f] = before; input.value = before || ''; if (input.classList.contains('ch')) input.dataset.v = input.value; rerank(); refresh();
       toast('บันทึกไม่สำเร็จ: ' + (e.message || e));
     } finally { input.classList.remove('saving'); }
   });
