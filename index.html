@@ -455,6 +455,24 @@ function tableRow(r) {
 // plain numbers get thousands commas (30000 -> 30,000); text like "3 หมื่น" stays as typed
 const money = v => { v = String(v || '').trim(); if (!/^[\d,]+(\.\d+)?$/.test(v)) return v; const [i, d] = v.replace(/,/g, '').split('.'); return i.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+$)/g, ',') + (d ? '.' + d : ''); };
 
+// Enter = save and move down, like a spreadsheet: same column in the next row (table) or same field in the next card. Shift+Enter keeps a new line in text boxes.
+$('list').addEventListener('keydown', e => {
+  const t = e.target;
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing || !t.matches('input:not([type=checkbox]), textarea')) return;
+  e.preventDefault();
+  let next;
+  const td = t.closest('td');
+  if (td) { const tr = td.parentElement.nextElementSibling; next = tr && tr.children[td.cellIndex].querySelector('input, textarea, select'); }
+  else {
+    const c = t.closest('.card'), fields = x => x ? [...x.querySelectorAll('input:not(.pick), textarea, select')] : [];
+    const below = c.nextElementSibling && c.nextElementSibling.matches('.card') ? c.nextElementSibling : null;
+    next = fields(below)[fields(c).indexOf(t)];
+    const shut = next && next.closest('details:not([open])'); if (shut) shut.open = true; // field sits in the closed รายละเอียด section
+  }
+  t.dispatchEvent(new Event('change')); t.blur(); // save now; the browser's own change on blur is then a no-op (value unchanged)
+  if (next) { next.focus(); if (next.select) next.select(); }
+});
+
 // save one field on change; revert and say so if the server refuses
 function bind(input, r, f, refresh) {
   input.addEventListener('change', async () => {
