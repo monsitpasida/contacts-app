@@ -37,6 +37,10 @@
   #ask p { margin:0 0 12px; white-space:pre-line; }
   #ask input { width:100%; margin-bottom:12px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg2); color:var(--text); font:inherit; font-size:16px; }
   #ask .row { display:flex; gap:8px; justify-content:flex-end; }
+  .selBar { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(12px + env(safe-area-inset-bottom)); z-index:6; width:min(560px, calc(100vw - 32px)); margin:0; box-shadow:var(--glow); padding:8px 10px; align-items:center; background:var(--card2); border:1px solid var(--line); border-radius:12px; }
+  .selBar #selCount { flex:1; font-weight:600; }
+  button:disabled { opacity:.45; cursor:default; }
+  input.pick, .card .head input.pick, td input.pick { flex:none; width:22px; min-width:22px; height:22px; padding:0; accent-color:#ff4d4d; cursor:pointer; }
   .ghost { background:rgba(15,36,88,.7); color:var(--text); border:1px solid var(--line); box-shadow:none; }
   .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   input[type=file] { display:none; }
@@ -148,6 +152,13 @@
   <button class="ghost" id="add">+ เพิ่มรายชื่อ</button>
   <label class="btn ghost">นำเข้า .vcf<input type="file" id="vcf" accept=".vcf,text/vcard,text/x-vcard" multiple></label>
   <button class="ghost" id="csv">ส่งออก Excel (CSV)</button>
+  <button class="ghost" id="selectBtn">☑︎ เลือกหลายรายชื่อ</button>
+</div>
+<div class="actions selBar" id="selBar" hidden>
+  <span id="selCount">เลือก 0 คน</span>
+  <button class="ghost" id="selAll">เลือกทั้งหมด</button>
+  <button class="danger" id="selDel" disabled>ลบที่เลือก</button>
+  <button class="ghost" id="selCancel">ยกเลิก</button>
 </div>
 <main id="list"></main>
 </section>
@@ -162,12 +173,13 @@ const CHANNELS = ['', 'โทรศัพท์', 'LINE', 'Facebook', 'อีเ
 const RESULTS = ['ยังไม่ติดต่อ', 'ติดต่อแล้ว', 'ไม่รับสาย', 'นัดได้', 'ไม่สะดวก', 'ปฏิเสธ'];
 const SCORES = [['diligent', 'ขยัน'], ['close', 'ความสนิท'], ['manner', 'อัธยาศัย']];
 const PAGE = matchMedia('(min-width: 900px)').matches ? 100 : 50; // rows per page: table fits more
+let selecting = false; const picked = new Set(); // multi-delete mode
 let rows = [], filter = 'all', shown = PAGE, profile = null; // profile = {id, name} while a book is open
 
 const $ = id => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
 const ARGS = { listProfiles: () => ({}), createProfile: name => ({ name }), renameProfile: (id, name) => ({ id, name }), deleteProfile: (id, typed) => ({ id, typed }),
-  getData: profileId => ({ profileId }), updateField: (id, field, value) => ({ id, field, value }), addContacts: (profileId, list) => ({ profileId, list }), deleteContact: id => ({ id }) };
+  getData: profileId => ({ profileId }), updateField: (id, field, value) => ({ id, field, value }), addContacts: (profileId, list) => ({ profileId, list }), deleteContact: id => ({ id }), deleteContacts: ids => ({ ids }) };
 const PICK = { listProfiles: 'profiles', createProfile: 'profile', getData: 'rows', updateField: 'row' };
 const run = (fn, ...args) => api(fn, ARGS[fn](...args)).then(d => (PICK[fn] ? d[PICK[fn]] : d));
 const total = r => SCORES.reduce((s, [f]) => s + (Number(r[f]) || 0), 0);
@@ -206,6 +218,7 @@ function render() {
     main.append(more);
   }
   $('count').textContent = `${list.length} / ${rows.length} คน`;
+  if (selecting) selBar();
 }
 
 function contactLinks(contact) {
@@ -244,7 +257,7 @@ function card(r) {
     bind(i, r, f, refresh);
     return el('label', { className: 'f' }, label, i);
   };
-  const del = deleteButton(r);
+  const del = selecting ? pickBox(r) : deleteButton(r);
   const more = el('details', {}, el('summary', { textContent: 'รายละเอียด' }), el('div', { className: 'more' },
     field('อาชีพ', 'job'), field('รายได้', 'income'), field('เรื่องที่อยากคุย', 'topic', 'area'),
     field('ช่องทางติดต่อ', 'channel', 'channel'), field('ข้อมูลติดต่อ (คั่นด้วย ,)', 'contact'), field('หมายเหตุ', 'note', 'area')));
@@ -269,6 +282,38 @@ function ask(msg, withInput) {
     d.onclose = () => { d.remove(); res(val); };
   });
 }
+
+function pickBox(r) {
+  const b = el('input', { type: 'checkbox', className: 'pick', checked: picked.has(r.id), ariaLabel: 'เลือก ' + (r.name || 'รายชื่อนี้') });
+  b.onchange = () => { b.checked ? picked.add(r.id) : picked.delete(r.id); selBar(); };
+  return b;
+}
+function selBar() {
+  $('selBar').hidden = !selecting; $('selectBtn').hidden = selecting;
+  const n = picked.size, vis = visible();
+  $('selCount').textContent = `เลือก ${n} คน`;
+  $('selDel').disabled = !n;
+  $('selAll').textContent = vis.length && vis.every(r => picked.has(r.id)) ? 'ไม่เลือกทั้งหมด' : `เลือกทั้งหมด (${vis.length})`;
+}
+function setSelecting(on) { selecting = on; picked.clear(); selBar(); render(); }
+$('selectBtn').onclick = () => setSelecting(true);
+$('selCancel').onclick = () => setSelecting(false);
+$('selAll').onclick = () => {
+  const vis = visible(), all = vis.length && vis.every(r => picked.has(r.id));
+  for (const r of vis) all ? picked.delete(r.id) : picked.add(r.id);
+  if (!all) shown = Math.max(shown, vis.length); // show every selected row so nothing hidden gets deleted unseen
+  selBar(); render();
+};
+$('selDel').onclick = async () => {
+  const ids = [...picked];
+  if (await ask(`ลบ ${ids.length} รายชื่อที่เลือก?\n(กู้คืนได้จากประวัติเวอร์ชันของ Google Sheet)`) === null) return;
+  $('selDel').disabled = true;
+  try {
+    await run('deleteContacts', ids);
+    const gone = new Set(ids); rows = rows.filter(x => !gone.has(x.id)); rerank();
+    setSelecting(false); toast(`ลบ ${ids.length} รายชื่อแล้ว`);
+  } catch (e) { toast('ลบไม่สำเร็จ: ' + e.message); selBar(); }
+};
 
 function deleteButton(r) {
   const del = el('button', { className: 'trash', textContent: '🗑', title: 'ลบรายชื่อนี้', ariaLabel: 'ลบ ' + (r.name || 'รายชื่อนี้') });
@@ -295,7 +340,7 @@ function tableRow(r) {
   const cellFor = f => {
     if (f === 'rank') return rank;
     if (f === 'total') return tot;
-    if (!f) return el('td', {}, deleteButton(r));
+    if (!f) return el('td', {}, selecting ? pickBox(r) : deleteButton(r));
     const i = SCORES.some(([k]) => k === f) ? select(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], r[f], o => o || '–')
       : f === 'channel' ? select(CHANNELS, r[f]) : f === 'result' ? select(RESULTS, r[f] || 'ยังไม่ติดต่อ')
       : f === 'date' ? el('input', { type: 'date', value: r[f] }) : (f === 'topic' || f === 'note') ? el('textarea', { rows: 1, value: r[f] })
@@ -437,7 +482,7 @@ function showProfiles(push) {
 function openBook(p, push) {
   profile = { id: p.id, name: p.name };
   $('bookTitle').textContent = p.name; $('count').textContent = 'กำลังโหลด...'; $('list').replaceChildren();
-  $('q').value = ''; filter = 'all'; shown = PAGE;
+  $('q').value = ''; filter = 'all'; shown = PAGE; selecting = false; picked.clear(); selBar();
   document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x.dataset.f === 'all'));
   showOnly('bookView'); window.scrollTo(0, 0);
   if (push) history.pushState({ p: p.id, n: p.name }, '', REDIRECT + '#p=' + p.id);
