@@ -33,7 +33,7 @@
   button, .btn { border:0; border-radius:10px; padding:9px 14px; font:inherit; font-size:14px; cursor:pointer; background:linear-gradient(135deg,#2f7cf6,#3fb4ff); color:#fff; box-shadow:0 0 18px rgba(63,162,255,.35); text-decoration:none; display:inline-block; }
   .danger { background:linear-gradient(135deg,#d92d2d,#ff4d4d); box-shadow:0 0 18px rgba(255,77,77,.4); }
   #ask { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:16px; padding:18px; width:min(360px, calc(100vw - 32px)); box-shadow:var(--glow); }
-  #ask::backdrop { background:rgba(0,0,0,.6); }
+  .askBack { position:fixed; inset:0; z-index:20; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:16px; }
   #ask p { margin:0 0 12px; white-space:pre-line; }
   #ask input { width:100%; margin-bottom:12px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg2); color:var(--text); font:inherit; font-size:16px; }
   #ask .row { display:flex; gap:8px; justify-content:flex-end; }
@@ -57,6 +57,7 @@
   .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   input[type=file] { display:none; }
   main { padding:12px 16px 80px; display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); }
+  .card { content-visibility:auto; contain-intrinsic-size:auto 230px; } /* off-screen cards skip layout: keeps long lists smooth */
   .card { background:linear-gradient(180deg,var(--card2),var(--card)); border:1px solid var(--line); box-shadow:var(--glow); border-radius:16px; padding:12px; display:flex; flex-direction:column; gap:10px; min-width:0; }
   .head { display:flex; align-items:center; gap:8px; }
   .rank { color:var(--muted); font-size:13px; min-width:34px; }
@@ -219,7 +220,27 @@ function visible() {
 const wide = matchMedia('(min-width: 900px)');
 wide.addEventListener('change', () => profile && render());
 
-const autoMore = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { autoMore.disconnect(); $('more') && $('more').click(); } }, { rootMargin: '400px' });
+let sliding = 0; // delete animations running; auto-load waits for them so the two never share frames
+const autoMore = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { autoMore.disconnect(); autoLoad(); } }, { rootMargin: '400px' });
+function autoLoad() { if (sliding) return setTimeout(autoLoad, 150); $('more') && $('more').click(); }
+// add the next page under what is already on screen (no full re-render, so no stutter or lost open sections)
+function appendMore() {
+  autoMore.disconnect();
+  const list = visible(), more = $('more');
+  const onPage = r => { const n = shownEl.get(r); return !!(n && n.el.isConnected); };
+  const rest = list.filter(r => !onPage(r)), next = rest.slice(0, PAGE);
+  const left = rest.length - next.length; shown = list.length - left;
+  more.disabled = true;
+  let i = 0;
+  const step = () => { // 10 per frame so building a page never freezes scrolling
+    const part = next.slice(i, i += 10);
+    if (wide.matches) $('list').querySelector('tbody').append(...part.map(tableRow)); else more.before(...part.map(card));
+    if (i < next.length && more.isConnected) return requestAnimationFrame(step);
+    more.disabled = false;
+    if (left) { more.textContent = `แสดงเพิ่ม (${left})`; autoMore.observe(more); } else more.remove();
+  };
+  step();
+}
 function render() {
   autoMore.disconnect();
   const list = visible(), main = $('list'), page = list.slice(0, shown);
@@ -228,7 +249,7 @@ function render() {
   if (!list.length) main.append(el('div', { className: 'empty', textContent: rows.length ? 'ไม่พบรายชื่อที่ตรงกับตัวกรอง' : 'ยังไม่มีรายชื่อในโปรไฟล์นี้ — กด "นำเข้า .vcf" หรือ "+ เพิ่มรายชื่อ"' }));
   if (list.length > shown) {
     const more = el('button', { id: 'more', className: 'ghost', textContent: `แสดงเพิ่ม (${list.length - shown})` });
-    more.onclick = () => { shown += PAGE; render(); };
+    more.onclick = appendMore;
     main.append(more);
     autoMore.observe(more); // loads the next page when the button scrolls into view; the button stays as a fallback
   }
@@ -294,17 +315,26 @@ function card(r) {
 
 // delete confirmation with a red ลบ button; resolves to null on cancel, else the typed text ('' without input)
 function ask(msg, withInput) {
-  const d = el('dialog', { id: 'ask' });
+  // plain overlay, not <dialog>.showModal(): making the page inert restyles every card and stalls long lists
+  const back = el('div', { className: 'askBack' });
+  const d = el('div', { id: 'ask', role: 'alertdialog', ariaModal: 'true', ariaLabel: msg.split('\n')[0] });
   const inp = withInput ? el('input', { ariaLabel: 'พิมพ์ชื่อเพื่อยืนยัน' }) : null;
   const cancel = el('button', { className: 'ghost', textContent: 'ยกเลิก', type: 'button' });
   const ok = el('button', { className: 'danger', textContent: 'ลบ', type: 'button' });
   d.append(el('p', { textContent: msg }), ...(inp ? [inp] : []), el('div', { className: 'row' }, cancel, ok));
-  document.body.append(d); d.showModal(); (inp || cancel).focus();
+  back.append(d); document.body.append(back);
+  const prev = document.activeElement; (inp || cancel).focus({ preventScroll: true });
   return new Promise(res => {
-    let val = null;
-    cancel.onclick = () => d.close();
-    ok.onclick = () => { val = inp ? inp.value : ''; d.close(); };
-    d.onclose = () => { d.remove(); res(val); };
+    const done = val => { back.remove(); document.removeEventListener('keydown', key, true); if (prev && prev.isConnected) prev.focus({ preventScroll: true }); res(val); };
+    const key = e => {
+      if (e.key === 'Escape') { e.preventDefault(); done(null); }
+      else if (e.key === 'Enter' && inp && document.activeElement === inp) { e.preventDefault(); done(inp.value); }
+      else if (e.key === 'Tab') { const f = [inp, cancel, ok].filter(Boolean), k = f.indexOf(document.activeElement); e.preventDefault(); f[(k + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus(); } // keep focus inside
+    };
+    document.addEventListener('keydown', key, true);
+    cancel.onclick = () => done(null);
+    ok.onclick = () => done(inp ? inp.value : '');
+    back.onclick = e => { if (e.target === back) done(null); };
   });
 }
 
@@ -337,15 +367,16 @@ function setSelecting(on) {
 // deleted row slides right and fades, then (cards) folds its height closed before leaving the page
 function slideOut(e) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return e.remove();
-  e.style.pointerEvents = 'none'; e.style.overflow = 'hidden';
+  e.style.pointerEvents = 'none'; e.style.overflow = 'hidden'; sliding++;
   e.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateX(110%)', opacity: 0 }], { duration: 320, easing: 'cubic-bezier(.4,0,.8,.4)', fill: 'forwards' })
     .finished.then(() => e.tagName === 'TR' ? null : e.animate([{ height: e.offsetHeight + 'px' }, { height: '0px', paddingTop: 0, paddingBottom: 0, borderWidth: 0 }], { duration: 200, easing: 'ease-out', fill: 'forwards' }).finished)
-    .finally(() => e.remove());
+    .finally(() => { e.remove(); sliding--; });
 }
 // drop deleted rows from the page in place, then refresh ranks
 function removeShown(gone) {
   rows = rows.filter(x => { if (!gone(x)) return true; const n = shownEl.get(x); if (n) slideOut(n.el); return false; });
-  rerank(); rows.forEach(x => { const n = shownEl.get(x); if (n) n.refresh(); });
+  const old = new Map(rows.map(x => [x, x.rank]));
+  rerank(); rows.forEach(x => { const n = shownEl.get(x); if (n && old.get(x) !== x.rank) n.refresh(); }); // touch only cards whose rank moved
   const list = visible(); $('count').textContent = `${list.length} / ${rows.length} คน`;
   if (!list.length) render();
 }
