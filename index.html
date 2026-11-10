@@ -42,7 +42,8 @@
   button:disabled { opacity:.45; cursor:default; }
   input.pick, .card .head input.pick, td input.pick { flex:none; width:22px; min-width:22px; height:22px; padding:0; accent-color:#ff4d4d; cursor:pointer; }
   /* channel colors: glass look = translucent tint + light top sheen + colored edge */
-  select.ch:not([data-v=""]) { --c:148,163,184; font-weight:600; color:rgb(var(--c)); border:1px solid rgba(var(--c),.55);
+  select.tint { --c:148,163,184; } /* default; per-value colors below override it */
+  select.tint:not([data-v=""]):not([data-v="ยังไม่ติดต่อ"]) { font-weight:600; color:rgb(var(--c)); border:1px solid rgba(var(--c),.55);
     background:linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.02) 55%), rgba(var(--c),.18);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 0 12px rgba(var(--c),.25); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
   select.ch[data-v="โทรศัพท์"] { --c:196,167,255; }
@@ -51,7 +52,12 @@
   select.ch[data-v="อีเมล"] { --c:253,164,95; }
   select.ch[data-v="พบตัว"] { --c:255,207,90; }
   select.ch[data-v="อื่นๆ"] { --c:180,192,210; }
-  select.ch option { background:var(--card); color:var(--text); }
+  select.res[data-v="ติดต่อแล้ว"] { --c:125,180,255; }
+  select.res[data-v="ไม่รับสาย"] { --c:253,164,95; }
+  select.res[data-v="นัดได้"] { --c:74,222,128; }
+  select.res[data-v="ไม่สะดวก"] { --c:255,207,90; }
+  select.res[data-v="ปฏิเสธ"] { --c:255,120,120; }
+  select.tint option { background:var(--card); color:var(--text); }
   #list { overflow-x:clip; } /* slide-out animation must not add a sideways scrollbar */
   .ghost { background:rgba(15,36,88,.7); color:var(--text); border:1px solid var(--line); box-shadow:none; }
   .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
@@ -270,9 +276,10 @@ function contactLinks(contact) {
   }).filter(Boolean);
 }
 
-// channel dropdown colored by its value (colors in CSS: select.ch[data-v=...])
-function chSelect(value) {
-  const s = select(CHANNELS, value); s.classList.add('ch');
+// dropdown colored by its value (glass look in CSS: select.tint, colors per select.ch / select.res [data-v=...])
+const chSelect = value => tinted(CHANNELS, value, 'ch');
+function tinted(opts, value, kind) {
+  const s = select(opts, value); s.classList.add('tint', kind);
   const tint = () => { s.dataset.v = s.value; }; tint(); s.addEventListener('change', tint);
   return s;
 }
@@ -298,7 +305,7 @@ function card(r) {
     bind(s, r, f, refresh);
     return el('label', { className: 'f' }, label, s);
   }));
-  const result = select(RESULTS, r.result || 'ยังไม่ติดต่อ'); bind(result, r, 'result', refresh);
+  const result = tinted(RESULTS, r.result || 'ยังไม่ติดต่อ', 'res'); bind(result, r, 'result', refresh);
   const date = el('input', { type: 'date', value: r.date }); bind(date, r, 'date', refresh);
 
   const field = (label, f, kind) => {
@@ -432,7 +439,7 @@ function tableRow(r) {
     if (f === 'total') return tot;
     if (!f) return el('td', {}, selecting ? pickBox(r) : deleteButton(r));
     const i = SCORES.some(([k]) => k === f) ? select(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], r[f], o => o || '–')
-      : f === 'channel' ? chSelect(r[f]) : f === 'result' ? select(RESULTS, r[f] || 'ยังไม่ติดต่อ')
+      : f === 'channel' ? chSelect(r[f]) : f === 'result' ? tinted(RESULTS, r[f] || 'ยังไม่ติดต่อ', 'res')
       : f === 'date' ? el('input', { type: 'date', value: r[f] }) : (f === 'topic' || f === 'note') ? el('textarea', { rows: 1, value: r[f] })
       : el('input', { value: f === 'income' ? money(r[f]) : r[f] });
     if (f === 'note') grow(i);
@@ -461,7 +468,7 @@ function bind(input, r, f, refresh) {
       Object.assign(r, saved, { rank: r.rank }); refresh();
       toast('บันทึกแล้ว ✓');
     } catch (e) {
-      r[f] = before; input.value = before || ''; if (input.classList.contains('ch')) input.dataset.v = input.value; rerank(); refresh();
+      r[f] = before; input.value = before || ''; if (input.classList.contains('tint')) input.dataset.v = input.value; rerank(); refresh();
       toast('บันทึกไม่สำเร็จ: ' + (e.message || e));
     } finally { input.classList.remove('saving'); }
   });
