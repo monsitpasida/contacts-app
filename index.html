@@ -254,6 +254,7 @@ function card(r) {
 
   const field = (label, f, kind) => {
     const i = kind === 'area' ? el('textarea', { value: r[f] }) : kind === 'channel' ? select(CHANNELS, r[f]) : el('input', { value: f === 'income' ? money(r[f]) : r[f] });
+    if (f === 'note') grow(i);
     bind(i, r, f, refresh);
     return el('label', { className: 'f' }, label, i);
   };
@@ -281,6 +282,14 @@ function ask(msg, withInput) {
     ok.onclick = () => { val = inp ? inp.value : ''; d.close(); };
     d.onclose = () => { d.remove(); res(val); };
   });
+}
+
+// note box grows to fit its text while hovered or being edited, then shrinks back
+function grow(t) {
+  const fit = () => { t.style.height = ''; t.style.height = t.scrollHeight + 2 + 'px'; };
+  const back = () => { if (document.activeElement !== t && !t.matches(':hover')) t.style.height = ''; };
+  t.addEventListener('mouseenter', fit); t.addEventListener('focus', fit); t.addEventListener('input', fit);
+  t.addEventListener('mouseleave', back); t.addEventListener('blur', back);
 }
 
 function pickBox(r) {
@@ -345,6 +354,7 @@ function tableRow(r) {
       : f === 'channel' ? select(CHANNELS, r[f]) : f === 'result' ? select(RESULTS, r[f] || 'ยังไม่ติดต่อ')
       : f === 'date' ? el('input', { type: 'date', value: r[f] }) : (f === 'topic' || f === 'note') ? el('textarea', { rows: 1, value: r[f] })
       : el('input', { value: f === 'income' ? money(r[f]) : r[f] });
+    if (f === 'note') grow(i);
     i.ariaLabel = COLUMNS.find(([k]) => k === f)[1] + ' ' + (r.name || '');
     bind(i, r, f, refresh);
     return el('td', { className: 'c-' + f }, i);
