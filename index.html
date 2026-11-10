@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>สมุดรายชื่อ AI</title>
+<meta name="description" content="สมุดรายชื่อส่วนตัว ให้คะแนน จัดลำดับการติดต่อ ลงนัด และผู้ช่วย AI ผ่าน LINE">
+<meta name="theme-color" content="#06122e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="รายชื่อ">
+<style>
+  :root {
+    --bg:#06122e; --bg2:#0b1d4a; --card:#0f2458; --card2:#13306f; --line:#244a96; --text:#eef4ff; --muted:#9fb5e3;
+    --accent:#3fa2ff; --accent2:#6fd3ff; --accent-soft:rgba(63,162,255,.16); --glow:0 0 0 1px rgba(111,211,255,.18), 0 10px 30px rgba(0,8,40,.45);
+    --hi:rgba(255,196,61,.16); --hi-text:#ffcf5a; --gold:#ffc23d; --ok:#4ade80; --bad:#ff8080; --line-green:#06c755;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:radial-gradient(1200px 700px at 50% -10%, #17418f 0%, var(--bg2) 35%, var(--bg) 75%) fixed; color:var(--text); font:15px/1.45 system-ui, "Sukhumvit Set", "Noto Sans Thai", sans-serif; -webkit-text-size-adjust:100%; }
+  header { position:sticky; top:0; z-index:5; background:rgba(6,18,46,.82); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); padding:12px 16px 8px; border-bottom:1px solid var(--line); }
+  .top { display:flex; align-items:center; gap:8px; }
+  h1 { font-size:20px; margin:0; flex:1; }
+  #count { color:var(--muted); font-size:13px; }
+  #q { width:100%; margin-top:8px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); font:inherit; font-size:16px; }
+  .chips { display:flex; gap:6px; margin-top:8px; overflow-x:auto; padding-bottom:2px; }
+  .chip { flex:none; border:1px solid var(--line); background:var(--card); color:var(--text); border-radius:999px; padding:6px 12px; font:inherit; font-size:14px; cursor:pointer; }
+  .chip[aria-pressed="true"] { background:var(--accent); border-color:var(--accent2); color:#fff; box-shadow:0 0 14px rgba(63,162,255,.5); }
+  button, .btn { border:0; border-radius:10px; padding:9px 14px; font:inherit; font-size:14px; cursor:pointer; background:linear-gradient(135deg,#2f7cf6,#3fb4ff); color:#fff; box-shadow:0 0 18px rgba(63,162,255,.35); text-decoration:none; display:inline-block; }
+  .ghost { background:rgba(15,36,88,.7); color:var(--text); border:1px solid var(--line); box-shadow:none; }
+  .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  input[type=file] { display:none; }
+  main { padding:12px 16px 80px; display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); }
+  .card { background:linear-gradient(180deg,var(--card2),var(--card)); border:1px solid var(--line); box-shadow:var(--glow); border-radius:16px; padding:12px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+  .head { display:flex; align-items:center; gap:8px; }
+  .rank { color:var(--muted); font-size:13px; min-width:34px; }
+  .name { flex:1; min-width:0; font-weight:600; font-size:16px; }
+  .total { background:var(--hi); color:var(--hi-text); border:1px solid rgba(255,194,61,.35); border-radius:10px; padding:4px 10px; font-weight:700; white-space:nowrap; }
+  .links { display:flex; flex-wrap:wrap; gap:6px; }
+  .links a { background:var(--accent-soft); color:var(--accent); border-radius:999px; padding:6px 12px; text-decoration:none; font-size:14px; }
+  .scores { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  label.f { display:flex; flex-direction:column; gap:2px; font-size:12px; color:var(--muted); min-width:0; }
+  .card input, .card select, .card textarea { width:100%; min-width:0; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); font:inherit; font-size:16px; }
+  .card input.name { border-color:transparent; padding:4px 6px; }
+  .card input.name:focus { border-color:var(--accent); }
+  .card textarea { resize:vertical; min-height:60px; }
+  details summary { cursor:pointer; color:var(--accent); font-size:14px; }
+  details .more { display:grid; gap:8px; margin-top:8px; }
+  .saving { outline:2px solid var(--accent); outline-offset:1px; }
+  #more { grid-column:1/-1; justify-self:center; }
+  .empty { grid-column:1/-1; text-align:center; color:var(--muted); padding:40px 0; }
+  .back { padding:6px 12px; font-size:18px; line-height:1; }
+  .pcard { background:linear-gradient(180deg,var(--card2),var(--card)); border:1px solid var(--line); box-shadow:var(--glow); border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .pcard h2 { margin:0; font-size:18px; word-break:break-word; }
+  .stats { display:flex; gap:12px; color:var(--muted); font-size:13px; flex-wrap:wrap; }
+  .stats b { color:var(--text); font-size:16px; }
+  .prow { display:flex; gap:6px; flex-wrap:wrap; }
+  .open { flex:1; }
+  .trash { background:none; border:1px solid var(--line); color:var(--bad); padding:6px 10px; font-size:16px; line-height:1; }
+  main.tableMode { display:block; padding:12px 16px 80px; }
+  .tableWrap { overflow:auto; max-height:calc(100vh - 210px); background:var(--card); border:1px solid var(--line); border-radius:10px; }
+  .tableWrap table { border-collapse:collapse; min-width:1700px; width:100%; }
+  .tableWrap th, .tableWrap td { border-bottom:1px solid var(--line); padding:4px; vertical-align:middle; }
+  .tableWrap th { position:sticky; top:0; z-index:2; background:var(--bg); font-weight:600; font-size:13px; white-space:nowrap; padding:8px 4px; text-align:left; }
+  .tableWrap td.num { text-align:center; font-weight:600; width:56px; }
+  .tableWrap td.tot { background:var(--hi); color:var(--hi-text); }
+  .tableWrap input, .tableWrap select, .tableWrap textarea { width:100%; min-width:0; border:1px solid transparent; background:transparent; color:var(--text); padding:5px; font:inherit; font-size:14px; border-radius:6px; }
+  .tableWrap input:hover, .tableWrap select:hover, .tableWrap textarea:hover { border-color:var(--line); }
+  .tableWrap input:focus, .tableWrap select:focus, .tableWrap textarea:focus { border-color:var(--accent); outline:none; background:var(--card); }
+  .tableWrap textarea { resize:vertical; min-height:30px; }
+  .tableWrap td.c-name { min-width:170px; } .tableWrap td.c-contact { min-width:170px; } .tableWrap td.c-topic, .tableWrap td.c-note { min-width:180px; }
+  .tableWrap td.c-diligent, .tableWrap td.c-close, .tableWrap td.c-manner { width:70px; }
+  .tableWrap tbody tr:hover { background:var(--accent-soft); }
+  main.tableMode #more, main.tableMode .empty { display:block; margin:12px auto; }
+  #toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:#eef4ff; color:#06122e; padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:calc(100vw - 32px); }
+  #toast.show { opacity:1; }
+
+  /* login / pending / users */
+  .center { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px 16px; gap:14px; }
+  .logo { width:min(220px, 55vw); border-radius:50%; box-shadow:0 0 40px rgba(63,162,255,.55), 0 0 0 3px rgba(111,211,255,.35); }
+  .center h1 { font-size:26px; margin:6px 0 0; flex:none; }
+  .center p { color:var(--muted); margin:0; max-width:420px; }
+  .linebtn { background:var(--line-green); box-shadow:0 0 20px rgba(6,199,85,.35); font-size:17px; padding:13px 26px; border-radius:12px; font-weight:600; }
+  .hint { font-size:13px; color:var(--muted); }
+  .me { display:flex; align-items:center; gap:8px; }
+  .avatar { width:34px; height:34px; border-radius:50%; object-fit:cover; border:2px solid var(--accent2); background:var(--card); }
+  .avatar.big { width:84px; height:84px; }
+  .menu { display:flex; gap:6px; }
+  .menu button { padding:7px 12px; }
+  .ucard .stats b { color:var(--gold); }
+  .status { border-radius:999px; padding:3px 10px; font-size:12px; border:1px solid var(--line); }
+  .status.approved { color:var(--ok); border-color:rgba(74,222,128,.5); }
+  .status.pending { color:var(--gold); border-color:rgba(255,194,61,.5); }
+  .status.blocked { color:var(--bad); border-color:rgba(255,128,128,.5); }
+  .pcard h2 { color:#fff; }
+  .stats b { color:var(--gold); }
+  .tableWrap { background:rgba(15,36,88,.85); }
+  .tableWrap th { background:#0b1d4a; color:var(--accent2); }
+  [hidden] { display:none !important; } /* .center/.actions set display, which would otherwise beat the hidden attribute */
+</style>
+</head>
+<body>
+<section id="loginView" class="center" hidden>
+  <img class="logo" src="icons/icon-512.png" alt="">
+  <h1>สมุดรายชื่อ AI</h1>
+  <p>จัดลำดับคนที่ควรติดต่อ ให้คะแนน ลงนัด และถามผู้ช่วย AI ผ่าน LINE — รายชื่อของคุณเห็นได้เฉพาะคุณ</p>
+  <button class="linebtn" id="loginBtn">เข้าสู่ระบบด้วย LINE</button>
+  <div class="hint" id="loginMsg"></div>
+  <div class="hint" id="iosHint" hidden>ติดตั้งเป็นแอป: กด <b>แชร์</b> → <b>เพิ่มไปยังหน้าจอโฮม</b></div>
+</section>
+<section id="pendingView" class="center" hidden>
+  <img class="avatar big" id="pendAvatar" alt="">
+  <h1 id="pendTitle">รอผู้ดูแลอนุมัติ</h1>
+  <p id="pendText">สมัครเรียบร้อยแล้ว เมื่อผู้ดูแลอนุมัติ จะมีข้อความแจ้งใน LINE แล้วกลับมาเปิดหน้านี้ได้เลย</p>
+  <div class="actions" style="justify-content:center"><button id="pendRefresh">ตรวจสอบอีกครั้ง</button><button class="ghost" id="pendLogout">ออกจากระบบ</button></div>
+</section>
+<section id="bootView" class="center"><img class="logo" src="icons/icon-512.png" alt=""><p>กำลังโหลด...</p></section>
+
+<section id="profilesView" hidden>
+  <header><div class="top"><div class="me"><img class="avatar" id="meAvatar" alt=""><h1>สมุดรายชื่อ</h1></div>
+    <div class="menu"><button class="ghost" id="usersBtn" hidden>ผู้ใช้</button><button class="ghost" id="logout">ออก</button></div></div>
+    <div class="actions"><button id="newProfile">+ สร้างโปรไฟล์</button><button class="ghost" id="installBtn" hidden>ติดตั้งแอป</button></div></header>
+  <main id="profiles"><div class="empty">กำลังโหลด...</div></main>
+</section>
+<section id="bookView" hidden>
+<header>
+  <div class="top"><button class="ghost back" id="back" aria-label="กลับไปหน้าโปรไฟล์">←</button><h1 id="bookTitle">รายชื่อ</h1><span id="count"></span></div>
+  <input id="q" type="search" placeholder="ค้นหาชื่อ เบอร์ อาชีพ หมายเหตุ" aria-label="ค้นหา">
+  <div class="chips" role="group" aria-label="ตัวกรอง">
+    <button class="chip" data-f="all" aria-pressed="true">ทั้งหมด</button>
+    <button class="chip" data-f="unscored" aria-pressed="false">ยังไม่ให้คะแนน</button>
+    <button class="chip" data-f="todo" aria-pressed="false">ยังไม่ติดต่อ</button>
+    <button class="chip" data-f="appt" aria-pressed="false">มีนัด</button>
+  </div>
+</header>
+<div class="actions" style="padding:0 16px">
+  <button class="ghost" id="add">+ เพิ่มรายชื่อ</button>
+  <label class="btn ghost">นำเข้า .vcf<input type="file" id="vcf" accept=".vcf,text/vcard,text/x-vcard" multiple></label>
+  <button class="ghost" id="csv">ส่งออก Excel (CSV)</button>
+</div>
+<main id="list"></main>
+</section>
+<section id="usersView" hidden>
+  <header><div class="top"><button class="ghost back" id="usersBack" aria-label="กลับ">←</button><h1>ผู้ใช้</h1></div></header>
+  <main id="users"></main>
+</section>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const CHANNELS = ['', 'โทรศัพท์', 'LINE', 'Facebook', 'อีเมล', 'พบตัว', 'อื่นๆ'];
+const RESULTS = ['ยังไม่ติดต่อ', 'ติดต่อแล้ว', 'ไม่รับสาย', 'นัดได้', 'ไม่สะดวก', 'ปฏิเสธ'];
+const SCORES = [['diligent', 'ขยัน'], ['close', 'ความสนิท'], ['manner', 'อัธยาศัย']];
+const PAGE = matchMedia('(min-width: 900px)').matches ? 100 : 50; // rows per page: table fits more
+let rows = [], filter = 'all', shown = PAGE, profile = null; // profile = {id, name} while a book is open
+
+const $ = id => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+const ARGS = { listProfiles: () => ({}), createProfile: name => ({ name }), renameProfile: (id, name) => ({ id, name }), deleteProfile: (id, typed) => ({ id, typed }),
+  getData: profileId => ({ profileId }), updateField: (id, field, value) => ({ id, field, value }), addContacts: (profileId, list) => ({ profileId, list }), deleteContact: id => ({ id }) };
+const PICK = { listProfiles: 'profiles', createProfile: 'profile', getData: 'rows', updateField: 'row' };
+const run = (fn, ...args) => api(fn, ARGS[fn](...args)).then(d => (PICK[fn] ? d[PICK[fn]] : d));
+const total = r => SCORES.reduce((s, [f]) => s + (Number(r[f]) || 0), 0);
+const today = () => new Date().toLocaleDateString('sv');
+let toastTimer;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2500); }
+
+// same rule as the server: by total, ties keep sheet order
+function rerank() {
+  rows.map((r, i) => [total(r), i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]).forEach(([, i], pos) => { rows[i].rank = String(pos + 1); });
+}
+
+function visible() {
+  const q = $('q').value.trim().toLowerCase(), d = today();
+  let list = rows.filter(r => {
+    if (filter === 'unscored' && total(r) > 0) return false;
+    if (filter === 'todo' && (r.result || 'ยังไม่ติดต่อ') !== 'ยังไม่ติดต่อ') return false;
+    if (filter === 'appt' && !(r.date && r.date >= d)) return false;
+    return !q || [r.name, r.contact, r.job, r.note, r.topic].join(' ').toLowerCase().includes(q);
+  });
+  return filter === 'appt' ? list.sort((a, b) => a.date < b.date ? -1 : 1) : list.sort((a, b) => a.rank - b.rank);
+}
+
+// computer = table (like the original program), phone = cards
+const wide = matchMedia('(min-width: 900px)');
+wide.addEventListener('change', () => profile && render());
+
+function render() {
+  const list = visible(), main = $('list'), page = list.slice(0, shown);
+  main.classList.toggle('tableMode', wide.matches);
+  main.replaceChildren(...(wide.matches ? (page.length ? [table(page)] : []) : page.map(card)));
+  if (!list.length) main.append(el('div', { className: 'empty', textContent: rows.length ? 'ไม่พบรายชื่อที่ตรงกับตัวกรอง' : 'ยังไม่มีรายชื่อในโปรไฟล์นี้ — กด "นำเข้า .vcf" หรือ "+ เพิ่มรายชื่อ"' }));
+  if (list.length > shown) {
+    const more = el('button', { id: 'more', className: 'ghost', textContent: `แสดงเพิ่ม (${list.length - shown})` });
+    more.onclick = () => { shown += PAGE; render(); };
+    main.append(more);
+  }
+  $('count').textContent = `${list.length} / ${rows.length} คน`;
+}
+
+function contactLinks(contact) {
+  return String(contact || '').split(/[,;]/).map(s => s.trim()).filter(Boolean).map(s => {
+    if (s.includes('@')) return el('a', { href: 'mailto:' + s, textContent: '✉️ ' + s });
+    const digits = s.replace(/[^\d+]/g, '');
+    return digits.replace('+', '').length >= 6 ? el('a', { href: 'tel:' + digits, textContent: '📞 ' + s }) : null;
+  }).filter(Boolean);
+}
+
+function select(opts, value, labelFor) {
+  const s = el('select');
+  for (const o of opts) s.append(el('option', { value: o, textContent: labelFor ? labelFor(o) : o || '—' }));
+  s.value = value || ''; return s;
+}
+
+function card(r) {
+  const c = el('article', { className: 'card' });
+  const rank = el('span', { className: 'rank', textContent: '#' + r.rank });
+  const badge = el('span', { className: 'total', textContent: 'รวม ' + total(r) });
+  const name = el('input', { className: 'name', value: r.name, ariaLabel: 'ชื่อ' });
+  const links = el('div', { className: 'links' }, ...contactLinks(r.contact));
+  const refresh = () => { badge.textContent = 'รวม ' + total(r); rank.textContent = '#' + r.rank; links.replaceChildren(...contactLinks(r.contact)); };
+  bind(name, r, 'name', refresh);
+
+  const scores = el('div', { className: 'scores' }, ...SCORES.map(([f, label]) => {
+    const s = select(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], r[f], o => o || '–');
+    bind(s, r, f, refresh);
+    return el('label', { className: 'f' }, label, s);
+  }));
+  const result = select(RESULTS, r.result || 'ยังไม่ติดต่อ'); bind(result, r, 'result', refresh);
+  const date = el('input', { type: 'date', value: r.date }); bind(date, r, 'date', refresh);
+
+  const field = (label, f, kind) => {
+    const i = kind === 'area' ? el('textarea', { value: r[f] }) : kind === 'channel' ? select(CHANNELS, r[f]) : el('input', { value: r[f] });
+    bind(i, r, f, refresh);
+    return el('label', { className: 'f' }, label, i);
+  };
+  const del = deleteButton(r);
+  const more = el('details', {}, el('summary', { textContent: 'รายละเอียด' }), el('div', { className: 'more' },
+    field('อาชีพ', 'job'), field('รายได้', 'income'), field('เรื่องที่อยากคุย', 'topic', 'area'),
+    field('ช่องทางติดต่อ', 'channel', 'channel'), field('ข้อมูลติดต่อ (คั่นด้วย ,)', 'contact'), field('หมายเหตุ', 'note', 'area')));
+
+  c.append(el('div', { className: 'head' }, rank, name, badge, del), links, scores,
+    el('div', { className: 'row2' }, el('label', { className: 'f' }, 'ผลการติดต่อ', result), el('label', { className: 'f' }, 'ลงนัดวันที่', date)), more);
+  return c;
+}
+
+function deleteButton(r) {
+  const del = el('button', { className: 'trash', textContent: '🗑', title: 'ลบรายชื่อนี้', ariaLabel: 'ลบ ' + (r.name || 'รายชื่อนี้') });
+  del.onclick = async () => {
+    if (!confirm(`ลบ "${r.name || 'ไม่มีชื่อ'}" ? (กู้คืนได้จากประวัติเวอร์ชันของ Google Sheet)`)) return;
+    try { await run('deleteContact', r.id); rows = rows.filter(x => x !== r); rerank(); render(); toast('ลบแล้ว'); }
+    catch (e) { toast('ลบไม่สำเร็จ: ' + e.message); }
+  };
+  return del;
+}
+
+// ---------- table (computer) ----------
+const COLUMNS = [['rank', 'ลำดับ'], ['name', 'รายชื่อ'], ['job', 'อาชีพ'], ['income', 'รายได้'], ['diligent', 'ขยัน'], ['close', 'ความสนิท'], ['manner', 'อัธยาศัย'],
+  ['total', 'คะแนนรวม'], ['topic', 'เรื่องที่อยากคุย'], ['channel', 'ช่องทางติดต่อ'], ['contact', 'ข้อมูลติดต่อ'], ['result', 'ผลการติดต่อ'], ['date', 'ลงนัดวันที่'], ['note', 'หมายเหตุ'], ['', '']];
+function table(list) {
+  return el('div', { className: 'tableWrap' }, el('table', {},
+    el('thead', {}, el('tr', {}, ...COLUMNS.map(([, h]) => el('th', { textContent: h })))),
+    el('tbody', {}, ...list.map(tableRow))));
+}
+function tableRow(r) {
+  const rank = el('td', { className: 'num', textContent: r.rank });
+  const tot = el('td', { className: 'num tot', textContent: total(r) });
+  const refresh = () => { rank.textContent = r.rank; tot.textContent = total(r); };
+  const cellFor = f => {
+    if (f === 'rank') return rank;
+    if (f === 'total') return tot;
+    if (!f) return el('td', {}, deleteButton(r));
+    const i = SCORES.some(([k]) => k === f) ? select(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], r[f], o => o || '–')
+      : f === 'channel' ? select(CHANNELS, r[f]) : f === 'result' ? select(RESULTS, r[f] || 'ยังไม่ติดต่อ')
+      : f === 'date' ? el('input', { type: 'date', value: r[f] }) : (f === 'topic' || f === 'note') ? el('textarea', { rows: 1, value: r[f] })
+      : el('input', { value: r[f] });
+    i.ariaLabel = COLUMNS.find(([k]) => k === f)[1] + ' ' + (r.name || '');
+    bind(i, r, f, refresh);
+    return el('td', { className: 'c-' + f }, i);
+  };
+  return el('tr', {}, ...COLUMNS.map(([f]) => cellFor(f)));
+}
+
+// save one field on change; revert and say so if the server refuses
+function bind(input, r, f, refresh) {
+  input.addEventListener('change', async () => {
+    const before = r[f], v = input.value.trim();
+    if (v === before) return;
+    r[f] = v; rerank(); refresh();
+    input.classList.add('saving');
+    try {
+      const saved = await run('updateField', r.id, f, v);
+      Object.assign(r, saved, { rank: r.rank }); refresh();
+      toast('บันทึกแล้ว ✓');
+    } catch (e) {
+      r[f] = before; input.value = before || ''; rerank(); refresh();
+      toast('บันทึกไม่สำเร็จ: ' + (e.message || e));
+    } finally { input.classList.remove('saving'); }
+  });
+}
+
+// ---------- vCard import (handles folding, QUOTED-PRINTABLE Thai, item1.TEL groups) ----------
+function qp(s) {
+  const b = [];
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '=' && /^[0-9A-Fa-f]{2}$/.test(s.substr(i + 1, 2))) { b.push(parseInt(s.substr(i + 1, 2), 16)); i += 2; }
+    else b.push(s.charCodeAt(i) & 255);
+  }
+  return new TextDecoder().decode(new Uint8Array(b));
+}
+function parseVCF(text) {
+  const lines = [];
+  for (const l of text.split(/\r\n|\r|\n/)) {
+    const p = lines[lines.length - 1];
+    if (p !== undefined && /^[ \t]/.test(l)) lines[lines.length - 1] = p + l.slice(1);
+    else if (p !== undefined && /QUOTED-PRINTABLE/i.test(p) && p.endsWith('=')) lines[lines.length - 1] = p.slice(0, -1) + l;
+    else lines.push(l);
+  }
+  const cards = []; let c = null;
+  for (const line of lines) {
+    const i = line.indexOf(':'); if (i < 0) continue;
+    const head = line.slice(0, i), params = head.split(';'), prop = params[0].split('.').pop().toUpperCase();
+    let val = line.slice(i + 1);
+    if (prop === 'BEGIN' && /VCARD/i.test(val)) { c = { FN:'', N:'', TEL:[], EMAIL:[], ORG:'', TITLE:'', NOTE:'' }; continue; }
+    if (!c) continue;
+    if (prop === 'END') { cards.push(c); c = null; continue; }
+    if (/QUOTED-PRINTABLE/i.test(head)) val = qp(val);
+    const unesc = s => s.replace(/\\n/gi, ' ').replace(/\\([,;\\])/g, '$1').trim();
+    if (prop === 'TEL' || prop === 'EMAIL') { const v = unesc(val); if (v && !c[prop].includes(v)) c[prop].push(v); }
+    else if (prop === 'N') c.N = val.split(';').map(unesc);
+    else if (prop === 'ORG') c.ORG = val.split(';').map(unesc).filter(Boolean).join(' ');
+    else if (prop in c) c[prop] = unesc(val);
+  }
+  return cards.map(c => {
+    const n = Array.isArray(c.N) ? [c.N[3], c.N[1], c.N[2], c.N[0], c.N[4]].filter(Boolean).join(' ') : '';
+    return { name: c.FN || n, job: [c.TITLE, c.ORG].filter(Boolean).join(' / '),
+      contact: [...c.TEL, ...c.EMAIL].join(', '), channel: c.TEL.length ? 'โทรศัพท์' : c.EMAIL.length ? 'อีเมล' : '', note: c.NOTE };
+  }).filter(r => r.name || r.contact);
+}
+
+// ---------- actions ----------
+$('q').addEventListener('input', () => { shown = PAGE; render(); });
+document.querySelectorAll('.chip').forEach(b => b.onclick = () => {
+  filter = b.dataset.f; shown = PAGE;
+  document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b));
+  render();
+});
+$('vcf').onchange = async e => {
+  const list = [];
+  for (const f of e.target.files) list.push(...parseVCF(await f.text()));
+  e.target.value = '';
+  if (!list.length) return toast('ไม่พบรายชื่อในไฟล์');
+  toast(`กำลังนำเข้า ${list.length} รายชื่อ...`);
+  try { const res = await run('addContacts', profile.id, list); rows = res.rows; render(); toast(`นำเข้า ${res.added} รายชื่อ` + (res.skipped ? ` (ข้ามที่ซ้ำ ${res.skipped})` : '')); }
+  catch (err) { toast('นำเข้าไม่สำเร็จ: ' + err.message); }
+};
+$('add').onclick = async () => {
+  const name = prompt('ชื่อ'); if (!name || !name.trim()) return;
+  try {
+    const res = await run('addContacts', profile.id, [{ name: name.trim() }]);
+    rows = res.rows; $('q').value = name.trim(); filter = 'all'; render();
+    toast(res.added ? 'เพิ่มแล้ว' : 'มีชื่อนี้อยู่แล้ว');
+  } catch (err) { toast('เพิ่มไม่สำเร็จ: ' + err.message); }
+};
+
+// ---------- profiles screen ----------
+async function loadProfiles() {
+  const box = $('profiles');
+  try {
+    const list = await run('listProfiles');
+    box.replaceChildren(...list.map(p => {
+      const open = el('button', { className: 'open', textContent: 'เปิดสมุด' }); open.onclick = () => openBook(p, true);
+      const ren = el('button', { className: 'ghost', textContent: 'แก้ชื่อ' });
+      ren.onclick = async () => {
+        const n = prompt('ชื่อโปรไฟล์ใหม่', p.name); if (!n || n.trim() === p.name) return;
+        try { await run('renameProfile', p.id, n.trim()); loadProfiles(); toast('แก้ชื่อแล้ว'); } catch (e) { toast(e.message); }
+      };
+      const del = el('button', { className: 'trash', textContent: '🗑', title: 'ลบโปรไฟล์', ariaLabel: 'ลบโปรไฟล์ ' + p.name });
+      del.onclick = async () => {
+        const typed = prompt(`ลบโปรไฟล์ "${p.name}" และรายชื่อทั้งหมด ${p.count} คนในโปรไฟล์นี้?\nพิมพ์ชื่อโปรไฟล์เพื่อยืนยัน`);
+        if (typed === null) return;
+        try { await run('deleteProfile', p.id, typed); loadProfiles(); toast('ลบโปรไฟล์แล้ว'); } catch (e) { toast(e.message); }
+      };
+      const pc = el('article', { className: 'pcard' },
+        el('h2', { textContent: p.name }),
+        el('div', { className: 'stats' },
+          el('span', {}, el('b', { textContent: p.count }), ' คน'),
+          el('span', {}, el('b', { textContent: p.scored }), ' ให้คะแนนแล้ว'),
+          el('span', {}, el('b', { textContent: p.appts }), ' นัดที่จะถึง')),
+        el('div', { className: 'prow' }, open, ren, del));
+      pc.querySelector('h2').onclick = () => openBook(p, true);
+      return pc;
+    }));
+  } catch (e) { box.replaceChildren(el('div', { className: 'empty', textContent: 'โหลดไม่สำเร็จ: ' + (e.message || e) })); }
+}
+$('newProfile').onclick = async () => {
+  const n = prompt('ชื่อโปรไฟล์ เช่น ลูกค้าใหม่, ทีมขาย, เพื่อนสมัยเรียน'); if (!n || !n.trim()) return;
+  try { const p = await run('createProfile', n.trim()); toast('สร้างโปรไฟล์แล้ว'); openBook(p, true); } catch (e) { toast(e.message); }
+};
+
+// ---------- switching screens (google.script.history keeps the phone's back button working) ----------
+function showProfiles(push) {
+  profile = null; rows = [];
+  if (push) history.pushState({ v: 'profiles' }, '', REDIRECT);
+  showOnly('profilesView'); loadProfiles();
+}
+function openBook(p, push) {
+  profile = { id: p.id, name: p.name };
+  $('bookTitle').textContent = p.name; $('count').textContent = 'กำลังโหลด...'; $('list').replaceChildren();
+  $('q').value = ''; filter = 'all'; shown = PAGE;
+  document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x.dataset.f === 'all'));
+  showOnly('bookView'); window.scrollTo(0, 0);
+  if (push) history.pushState({ p: p.id, n: p.name }, '', REDIRECT + '#p=' + p.id);
+  load();
+}
+$('back').onclick = () => showProfiles(true);
+window.addEventListener('popstate', e => { if (!me) return; const st = e.state || {}; st.p ? openBook({ id: st.p, name: st.n }) : st.v === 'users' ? showUsers() : showProfiles(); });
+
+async function load() {
+  const want = profile && profile.id;
+  try {
+    const data = await run('getData', want);
+    if (!profile || profile.id !== want) return; // switched away while loading
+    rows = data; rerank(); render(); // scores the LINE bot edits don't update stored ranks, so rank here
+  } catch (e) { $('count').textContent = 'โหลดไม่สำเร็จ'; toast('โหลดไม่สำเร็จ: ' + (e.message || e)); }
+}
+// another device may have changed things: reload when the tab comes back (unless typing)
+document.addEventListener('visibilitychange', () => {
+  if (!me || me.status !== 'approved' || document.hidden || document.activeElement.matches('input,textarea,select')) return;
+  if (!$('bookView').hidden) load(); else if (!$('profilesView').hidden) loadProfiles();
+});
+
+// ---------- server + sign-in ----------
+const API_URL = 'https://script.google.com/macros/s/AKfycbw1KMSL-NJ9Qogh4LQDDEmj4O3anODvfEnbBqfwu2PelMhL3QpCtF6pPF9m6AkkHVlJlw/exec';
+const REDIRECT = location.origin + location.pathname; // must match the Callback URL in the LINE Login channel
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
+let me = null;
+
+async function api(action, payload = {}) {
+  // text/plain body = no CORS preflight, which Apps Script can't answer
+  const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ api: action, token: store.get('token'), ...payload }) });
+  const d = await res.json().catch(() => ({ ok: false, error: 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้' }));
+  if (!d.ok) {
+    if (d.relogin) { store.set('token', null); me = null; showLogin('กรุณาเข้าสู่ระบบอีกครั้ง'); }
+    else if (d.user && d.user.status !== 'approved') { me = d.user; showPending(); }
+    throw new Error(d.error || 'ทำรายการไม่สำเร็จ');
+  }
+  return d;
+}
+
+const VIEWS = ['bootView', 'loginView', 'pendingView', 'profilesView', 'bookView', 'usersView'];
+function showOnly(id) { VIEWS.forEach(v => { $(v).hidden = v !== id; }); }
+function showLogin(msg) { showOnly('loginView'); $('loginMsg').textContent = msg || ''; }
+function showPending() {
+  showOnly('pendingView');
+  $('pendAvatar').src = me.picture || 'icons/icon-192.png';
+  const blocked = me.status === 'blocked';
+  $('pendTitle').textContent = blocked ? 'บัญชีถูกระงับ' : `สวัสดี ${me.name}`;
+  $('pendText').textContent = blocked ? 'ติดต่อผู้ดูแลหากคิดว่าเป็นความผิดพลาด' : 'สมัครเรียบร้อยแล้ว รอผู้ดูแลอนุมัติ — เมื่ออนุมัติจะมีข้อความแจ้งใน LINE แล้วกลับมาเปิดหน้านี้ได้เลย';
+}
+function enter() {
+  if (me.status !== 'approved') return showPending();
+  $('meAvatar').src = me.picture || 'icons/icon-192.png';
+  $('usersBtn').hidden = me.role !== 'admin';
+  const st = history.state || {};
+  st.p ? openBook({ id: st.p, name: st.n }) : showProfiles();
+}
+
+$('loginBtn').onclick = async () => {
+  $('loginMsg').textContent = 'กำลังไปที่ LINE...';
+  try {
+    const { loginChannelId } = await api('config');
+    if (!loginChannelId) throw new Error('ผู้ดูแลยังไม่ได้ตั้งค่า LINE Login');
+    const state = crypto.randomUUID();
+    store.set('loginState', state);
+    location.href = 'https://access.line.me/oauth2/v2.1/authorize?' + new URLSearchParams({
+      response_type: 'code', client_id: loginChannelId, redirect_uri: REDIRECT, state, scope: 'profile openid', bot_prompt: 'aggressive',
+    });
+  } catch (e) { $('loginMsg').textContent = e.message; }
+};
+async function logout() { try { await api('logout'); } catch {} store.set('token', null); me = null; showLogin('ออกจากระบบแล้ว'); }
+$('logout').onclick = logout; $('pendLogout').onclick = logout;
+$('pendRefresh').onclick = async () => { try { me = (await api('me')).user; enter(); } catch (e) { toast(e.message); } };
+
+async function boot() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('code') || q.get('error')) {
+    history.replaceState(null, '', REDIRECT); // drop the one-time code from the address bar
+    if (q.get('error')) return showLogin('ยกเลิกการเข้าสู่ระบบ');
+    if (q.get('state') !== store.get('loginState')) return showLogin('การเข้าสู่ระบบไม่ถูกต้อง ลองใหม่อีกครั้ง');
+    store.set('loginState', null);
+    try { const d = await api('login', { code: q.get('code'), redirectUri: REDIRECT }); store.set('token', d.token); me = d.user; return enter(); }
+    catch (e) { return showLogin(e.message); }
+  }
+  if (!store.get('token')) return showLogin();
+  try { me = (await api('me')).user; enter(); } catch (e) { if (!me && $('loginView').hidden) showLogin(e.message); }
+}
+
+// ---------- admin: approve people ----------
+async function showUsers(push) {
+  showOnly('usersView');
+  if (push) history.pushState({ v: 'users' }, '', REDIRECT + '#users');
+  const box = $('users'); box.replaceChildren(el('div', { className: 'empty', textContent: 'กำลังโหลด...' }));
+  try {
+    const { users } = await api('listUsers');
+    const order = { pending: 0, approved: 1, blocked: 2 };
+    box.replaceChildren(...users.sort((a, b) => order[a.status] - order[b.status]).map(u => {
+      const label = { pending: 'รออนุมัติ', approved: 'อนุมัติแล้ว', blocked: 'ระงับ' }[u.status];
+      const act = (text, status, ghost) => { const b = el('button', { className: ghost ? 'ghost' : '', textContent: text }); b.onclick = async () => { try { await api('setUserStatus', { uid: u.uid, status }); toast('บันทึกแล้ว'); showUsers(); } catch (e) { toast(e.message); } }; return b; };
+      const buttons = u.role === 'admin' ? [el('span', { className: 'hint', textContent: 'ผู้ดูแล' })]
+        : u.status === 'approved' ? [act('ระงับ', 'blocked', true)] : u.status === 'pending' ? [act('อนุมัติ', 'approved'), act('ปฏิเสธ', 'blocked', true)] : [act('อนุมัติ', 'approved')];
+      return el('article', { className: 'pcard ucard' },
+        el('div', { className: 'me' }, el('img', { className: 'avatar', src: u.picture || 'icons/icon-192.png', alt: '' }), el('h2', { textContent: u.name }), el('span', { className: 'status ' + u.status, textContent: label })),
+        el('div', { className: 'hint', textContent: 'สมัครเมื่อ ' + new Date(u.created).toLocaleDateString('th') }),
+        el('div', { className: 'prow' }, ...buttons));
+    }));
+  } catch (e) { box.replaceChildren(el('div', { className: 'empty', textContent: e.message })); }
+}
+$('usersBtn').onclick = () => showUsers(true);
+$('usersBack').onclick = () => showProfiles(true);
+
+// ---------- export the open book ----------
+$('csv').onclick = () => {
+  const cols = [['rank', 'ลำดับ'], ['name', 'รายชื่อ'], ['job', 'อาชีพ'], ['income', 'รายได้'], ['diligent', 'ขยัน'], ['close', 'ความสนิท'], ['manner', 'อัธยาศัย'], ['total', 'คะแนนรวม'],
+    ['topic', 'เรื่องที่อยากคุย'], ['channel', 'ช่องทางติดต่อ'], ['contact', 'ข้อมูลติดต่อ'], ['result', 'ผลการติดต่อ'], ['date', 'ลงนัดวันที่'], ['note', 'หมายเหตุ']];
+  const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [cols.map(c => c[1]), ...[...rows].sort((a, b) => a.rank - b.rank).map(r => cols.map(([f]) => f === 'total' ? total(r) : r[f]))];
+  const a = el('a', { href: URL.createObjectURL(new Blob(['﻿' + lines.map(l => l.map(esc).join(',')).join('\r\n')], { type: 'text/csv' })), download: `${profile.name}-${today()}.csv` });
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+// ---------- install as an app ----------
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('installBtn').hidden = false; });
+$('installBtn').onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $('installBtn').hidden = true; };
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone) $('iosHint').hidden = false;
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+boot();
+</script>
+</body>
+</html>

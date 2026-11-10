@@ -1,0 +1,17 @@
+{
+  "name": "สมุดรายชื่อ AI",
+  "short_name": "รายชื่อ",
+  "description": "สมุดรายชื่อส่วนตัว ให้คะแนน จัดลำดับการติดต่อ ลงนัด และผู้ช่วย AI ผ่าน LINE",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#06122e",
+  "theme_color": "#06122e",
+  "lang": "th",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
