@@ -86,7 +86,8 @@
   .open { flex:1; }
   .trash { background:none; border:1px solid var(--line); color:var(--bad); padding:6px 10px; font-size:16px; line-height:1; }
   main.tableMode { display:block; padding:12px 16px 80px; }
-  .tableWrap { overflow:auto; max-height:calc(100vh - 210px); background:var(--card); border:1px solid var(--line); border-radius:10px; }
+  /* the table scrolls inside itself and parks just under the sticky page header, so its column titles stay visible */
+  .tableWrap { overflow:auto; position:sticky; top:calc(var(--hh, 180px) + 8px); max-height:calc(100vh - var(--tt, 240px) - 40px); background:var(--card); border:1px solid var(--line); border-radius:10px; }
   .tableWrap table { border-collapse:collapse; min-width:1700px; width:100%; }
   .tableWrap th, .tableWrap td { border-bottom:1px solid var(--line); padding:4px; vertical-align:middle; }
   .tableWrap th { position:sticky; top:0; z-index:2; background:var(--bg); font-weight:600; font-size:13px; white-space:nowrap; padding:8px 4px; text-align:left; }
@@ -221,6 +222,10 @@ const wide = matchMedia('(min-width: 900px)');
 wide.addEventListener('change', () => profile && render());
 
 let sliding = 0; // delete animations running; auto-load waits for them so the two never share frames
+// --hh = book page's sticky header height, --tt = header + button row: the table is sized to fit below them so the page itself never scrolls it under the header
+const bookHead = document.querySelector('#bookView > header'), bookBtns = document.querySelector('#bookView > .actions');
+const sizeTop = () => { const st = document.documentElement.style; st.setProperty('--hh', bookHead.offsetHeight + 'px'); st.setProperty('--tt', bookHead.offsetHeight + bookBtns.offsetHeight + 'px'); };
+const topRO = new ResizeObserver(sizeTop); topRO.observe(bookHead); topRO.observe(bookBtns);
 const autoMore = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { autoMore.disconnect(); autoLoad(); } }, { rootMargin: '400px' });
 function autoLoad() { if (sliding) return setTimeout(autoLoad, 150); $('more') && $('more').click(); }
 // add the next page under what is already on screen (no full re-render, so no stutter or lost open sections)
