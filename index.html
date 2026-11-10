@@ -255,6 +255,8 @@ function select(opts, value, labelFor) {
   s.value = value || ''; return s;
 }
 
+// row object -> its card/tr and rank refresher, so a delete can update the page in place (no re-render, no scroll jump)
+const shownEl = new WeakMap(), ownerOf = new WeakMap();
 function card(r) {
   const c = el('article', { className: 'card' });
   const rank = el('span', { className: 'rank', textContent: '#' + r.rank });
@@ -285,6 +287,7 @@ function card(r) {
 
   c.append(el('div', { className: 'head' }, rank, name, badge, del), links, scores,
     el('div', { className: 'row2' }, el('label', { className: 'f' }, 'ผลการติดต่อ', result), el('label', { className: 'f' }, 'ลงนัดวันที่', date)), more);
+  shownEl.set(r, { el: c, refresh });
   return c;
 }
 
@@ -315,6 +318,7 @@ function grow(t) {
 function pickBox(r) {
   const b = el('input', { type: 'checkbox', className: 'pick', checked: picked.has(r.id), ariaLabel: 'เลือก ' + (r.name || 'รายชื่อนี้') });
   b.onchange = () => { b.checked ? picked.add(r.id) : picked.delete(r.id); selBar(); };
+  ownerOf.set(b, r);
   return b;
 }
 function selBar() {
@@ -324,7 +328,18 @@ function selBar() {
   $('selDel').disabled = !n;
   $('selAll').textContent = vis.length && vis.every(r => picked.has(r.id)) ? 'ไม่เลือกทั้งหมด' : `เลือกทั้งหมด (${vis.length})`;
 }
-function setSelecting(on) { selecting = on; picked.clear(); selBar(); render(); }
+function setSelecting(on) {
+  selecting = on; picked.clear(); selBar();
+  // swap 🗑 <-> checkbox in place so the page stays where it is
+  $('list').querySelectorAll(on ? '.trash' : '.pick').forEach(x => { const r = ownerOf.get(x); if (r) x.replaceWith(on ? pickBox(r) : deleteButton(r)); });
+}
+// drop deleted rows from the page in place, then refresh ranks
+function removeShown(gone) {
+  rows = rows.filter(x => { if (!gone(x)) return true; const n = shownEl.get(x); if (n) n.el.remove(); return false; });
+  rerank(); rows.forEach(x => { const n = shownEl.get(x); if (n) n.refresh(); });
+  const list = visible(); $('count').textContent = `${list.length} / ${rows.length} คน`;
+  if (!list.length) render();
+}
 $('selectBtn').onclick = () => setSelecting(true);
 $('selCancel').onclick = () => setSelecting(false);
 $('selAll').onclick = () => {
@@ -339,16 +354,17 @@ $('selDel').onclick = async () => {
   $('selDel').disabled = true;
   try {
     await run('deleteContacts', ids);
-    const gone = new Set(ids); rows = rows.filter(x => !gone.has(x.id)); rerank();
+    const gone = new Set(ids); removeShown(x => gone.has(x.id));
     setSelecting(false); toast(`ลบ ${ids.length} รายชื่อแล้ว`);
   } catch (e) { toast('ลบไม่สำเร็จ: ' + e.message); selBar(); }
 };
 
 function deleteButton(r) {
   const del = el('button', { className: 'trash', textContent: '🗑', title: 'ลบรายชื่อนี้', ariaLabel: 'ลบ ' + (r.name || 'รายชื่อนี้') });
+  ownerOf.set(del, r);
   del.onclick = async () => {
     if (await ask(`ลบ "${r.name || 'ไม่มีชื่อ'}" ?\n(กู้คืนได้จากประวัติเวอร์ชันของ Google Sheet)`) === null) return;
-    try { await run('deleteContact', r.id); rows = rows.filter(x => x !== r); rerank(); render(); toast('ลบแล้ว'); }
+    try { await run('deleteContact', r.id); removeShown(x => x === r); toast('ลบแล้ว'); }
     catch (e) { toast('ลบไม่สำเร็จ: ' + e.message); }
   };
   return del;
@@ -379,7 +395,9 @@ function tableRow(r) {
     bind(i, r, f, refresh);
     return el('td', { className: 'c-' + f }, i);
   };
-  return el('tr', {}, ...COLUMNS.map(([f]) => cellFor(f)));
+  const tr = el('tr', {}, ...COLUMNS.map(([f]) => cellFor(f)));
+  shownEl.set(r, { el: tr, refresh });
+  return tr;
 }
 
 // plain numbers get thousands commas (30000 -> 30,000); text like "3 หมื่น" stays as typed
