@@ -360,12 +360,11 @@ $('selAll').onclick = () => {
 $('selDel').onclick = async () => {
   const ids = [...picked];
   if (await ask(`ลบ ${ids.length} รายชื่อที่เลือก?\n(กู้คืนได้จากประวัติเวอร์ชันของ Google Sheet)`) === null) return;
-  $('selDel').disabled = true;
-  try {
-    await run('deleteContacts', ids);
-    const gone = new Set(ids); removeShown(x => gone.has(x.id));
-    setSelecting(false); toast(`ลบ ${ids.length} รายชื่อแล้ว`);
-  } catch (e) { toast('ลบไม่สำเร็จ: ' + e.message); selBar(); }
+  // remove on screen at once, save in the background; if the server refuses, reload the real list
+  const gone = new Set(ids); removeShown(x => gone.has(x.id));
+  setSelecting(false); toast(`ลบ ${ids.length} รายชื่อแล้ว`);
+  try { await run('deleteContacts', ids); }
+  catch (e) { toast('ลบไม่สำเร็จ: ' + e.message); load(); }
 };
 
 function deleteButton(r) {
@@ -373,8 +372,9 @@ function deleteButton(r) {
   ownerOf.set(del, r);
   del.onclick = async () => {
     if (await ask(`ลบ "${r.name || 'ไม่มีชื่อ'}" ?\n(กู้คืนได้จากประวัติเวอร์ชันของ Google Sheet)`) === null) return;
-    try { await run('deleteContact', r.id); removeShown(x => x === r); toast('ลบแล้ว'); }
-    catch (e) { toast('ลบไม่สำเร็จ: ' + e.message); }
+    removeShown(x => x === r); toast('ลบแล้ว'); // instant on screen; saved in the background
+    try { await run('deleteContact', r.id); }
+    catch (e) { toast('ลบไม่สำเร็จ: ' + e.message); load(); }
   };
   return del;
 }
