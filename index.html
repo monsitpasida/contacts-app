@@ -843,6 +843,19 @@ $('loginBtn').onclick = async () => {
     });
   } catch (e) { $('loginMsg').textContent = e.message; }
 };
+// pick up a session that the Safari side parked for this app (see boot); checked whenever the app comes back to the front
+async function claim() {
+  const st = store.get('loginState');
+  if (!st || me || $('loginView').hidden) return;
+  try {
+    const d = await api('claim', { state: st });
+    if (!d.token || me) return;
+    store.set('token', d.token); store.set('loginState', null); me = d.user; enter();
+  } catch {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) claim(); });
+window.addEventListener('focus', claim); window.addEventListener('pageshow', claim);
+setInterval(claim, 3000);
 async function logout() { try { await api('logout'); } catch {} store.set('token', null); me = null; showLogin('ออกจากระบบแล้ว'); }
 $('logout').onclick = logout; $('pendLogout').onclick = logout;
 $('pendRefresh').onclick = async () => { try { me = (await api('me')).user; enter(); } catch (e) { toast(e.message); } };
@@ -852,7 +865,12 @@ async function boot() {
   if (q.get('code') || q.get('error')) {
     history.replaceState(null, '', REDIRECT); // drop the one-time code from the address bar
     if (q.get('error')) return showLogin('ยกเลิกการเข้าสู่ระบบ');
-    if (q.get('state') !== store.get('loginState')) return showLogin('การเข้าสู่ระบบไม่ถูกต้อง ลองใหม่อีกครั้ง');
+    if (q.get('state') !== store.get('loginState')) {
+      // started in the iPhone home-screen app but LINE came back to Safari: hand the session to the app instead
+      try { await api('login', { code: q.get('code'), redirectUri: REDIRECT, state: q.get('state'), handoff: true }); }
+      catch (e) { return showLogin(e.message); }
+      return showLogin('เข้าสู่ระบบสำเร็จ ✓ กลับไปเปิดแอป "รายชื่อ" บนหน้าจอโฮมได้เลย แอปจะเข้าระบบให้เอง');
+    }
     store.set('loginState', null);
     try { const d = await api('login', { code: q.get('code'), redirectUri: REDIRECT }); store.set('token', d.token); me = d.user; return enter(); }
     catch (e) { return showLogin(e.message); }
