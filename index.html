@@ -310,7 +310,22 @@ function deck(list) {
       : [{ transform: 'none', boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)' }, { transform: 'translateY(-12px)', boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)', offset: .3 },
          { transform: 'translateY(110vh) scale(.9)', opacity: .2, boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)' }];
     c.animate(out, { duration: skip ? 260 : 520, easing: skip ? 'ease-in' : 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' })
-      .finished.then(() => { if (useDeck()) { render(); const n = $('list').querySelector('.card.swipe'); n && n.animate([{ transform: 'scale(.94)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 200, easing: 'ease-out' }); } });
+      .finished.then(nextCard);
+  };
+  const nextCard = () => { if (useDeck()) { render(); const n = $('list').querySelector('.card.swipe'); n && n.animate([{ transform: 'scale(.94)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 200, easing: 'ease-out' }); } };
+  const springBack = () => {
+    c.style.transition = 'transform .2s, opacity .2s, box-shadow .2s'; c.style.transform = ''; c.style.opacity = ''; c.style.boxShadow = '';
+    setTimeout(() => { c.style.transition = ''; }, 200);
+  };
+  // swiped left: ask first, then the card flies off left and the row is deleted (same as the 🗑 button)
+  const remove = async () => {
+    gone = true; // no taps or swipes while the question is open
+    if (await ask(`ลบ "${r.name || 'ไม่มีชื่อ'}" ?\n(กู้คืนได้จากประวัติเวอร์ชันของ Google Sheet)`) === null) { gone = false; return springBack(); }
+    rows = rows.filter(x => x !== r); rerank();
+    c.animate([{ transform: c.style.transform || 'none' }, { transform: 'translateX(-120%) rotate(-12deg)', opacity: 0 }], { duration: 260, easing: 'ease-in', fill: 'forwards' }).finished.then(nextCard);
+    toast('ลบแล้ว');
+    try { await run('deleteContact', r.id); }
+    catch (e) { toast('ลบไม่สำเร็จ: ' + e.message); load(); }
   };
   // taps only mark the card; once all 3 are picked, save them together and bring up the next person
   const picks = {};
@@ -343,25 +358,28 @@ function deck(list) {
   c.append(el('h2', { textContent: r.name || 'ไม่มีชื่อ' }), ...(r.job ? [el('div', { className: 'sub', textContent: r.job })] : []),
     el('div', { className: 'links' }, ...contactLinks(r.contact)), ...SCORES.map(pad), skip);
 
-  // swipe right to skip; a short drag springs back
+  // swipe right to skip, left to delete (asks first); a short drag springs back
   let x0 = null, y0 = 0, dx = 0, dragging = false;
   c.addEventListener('pointerdown', e => { if (!gone) { x0 = e.clientX; y0 = e.clientY; dx = 0; dragging = false; } });
   c.addEventListener('pointermove', e => {
     if (x0 === null) return;
-    dx = Math.max(0, e.clientX - x0);
-    if (!dragging && dx > 20 && dx > Math.abs(e.clientY - y0)) { dragging = true; c.setPointerCapture(e.pointerId); } // finger wobble on a tap is not a swipe
-    if (dragging) { c.style.transform = `translateX(${dx}px) rotate(${dx / 25}deg)`; c.style.opacity = String(1 - dx / 600); }
+    dx = e.clientX - x0;
+    if (!dragging && Math.abs(dx) > 20 && Math.abs(dx) > Math.abs(e.clientY - y0)) { dragging = true; c.setPointerCapture(e.pointerId); } // finger wobble on a tap is not a swipe
+    if (dragging) {
+      c.style.transform = `translateX(${dx}px) rotate(${dx / 25}deg)`; c.style.opacity = String(1 - Math.abs(dx) / 600);
+      c.style.boxShadow = dx < -40 ? '0 0 0 2px #ff5c5c, 0 0 24px rgba(255,92,92,.55)' : ''; // red = about to delete
+    }
   });
   const end = () => {
     if (x0 === null) return; x0 = null;
     if (!dragging) return;
     if (dx > 90) return go(true);
-    c.style.transition = 'transform .2s, opacity .2s'; c.style.transform = ''; c.style.opacity = '';
-    setTimeout(() => { c.style.transition = ''; }, 200);
+    if (dx < -90) return remove();
+    springBack();
   };
   c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
   c.addEventListener('click', e => { if (dragging) { e.stopPropagation(); e.preventDefault(); } }, true); // a drag that ends on a button is not a tap
-  wrap.append(c, el('div', { className: 'hint', textContent: 'กดคะแนนให้ครบ 3 ข้อ หรือปัดขวาเพื่อข้าม' }));
+  wrap.append(c, el('div', { className: 'hint', textContent: 'กดคะแนนให้ครบ 3 ข้อ · ปัดขวา = ข้าม · ปัดซ้าย = ลบ' }));
   return wrap;
 }
 
