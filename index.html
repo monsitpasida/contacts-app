@@ -215,7 +215,12 @@ const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.crea
 const ARGS = { listProfiles: () => ({}), createProfile: name => ({ name }), renameProfile: (id, name) => ({ id, name }), deleteProfile: (id, typed) => ({ id, typed }),
   getData: profileId => ({ profileId }), updateField: (id, field, value) => ({ id, field, value }), addContacts: (profileId, list) => ({ profileId, list }), deleteContact: id => ({ id }), deleteContacts: ids => ({ ids }) };
 const PICK = { listProfiles: 'profiles', createProfile: 'profile', getData: 'rows', updateField: 'row' };
-const run = (fn, ...args) => api(fn, ARGS[fn](...args)).then(d => (PICK[fn] ? d[PICK[fn]] : d));
+let writing = 0, writeGen = 0; // writes in flight / counter, so live sync can't apply a snapshot taken mid-save
+const run = (fn, ...args) => {
+  const write = fn !== 'getData' && fn !== 'listProfiles';
+  if (write) { writing++; writeGen++; }
+  return api(fn, ARGS[fn](...args)).then(d => (PICK[fn] ? d[PICK[fn]] : d)).finally(() => { if (write) { writing--; writeGen++; } });
+};
 const total = r => SCORES.reduce((s, [f]) => s + (Number(r[f]) || 0), 0);
 const scored = r => SCORES.every(([f]) => r[f]);
 const today = () => new Date().toLocaleDateString('sv');
@@ -335,7 +340,9 @@ function deck(list) {
     changed.forEach(f => { r[f] = picks[f]; }); rerank();
     go(false);
     try {
-      for (const f of changed) Object.assign(r, await run('updateField', r.id, f, r[f]), { rank: r.rank }); // one at a time: the server locks per write anyway
+      let saved = null;
+      for (const f of changed) saved = await run('updateField', r.id, f, picks[f]); // one at a time: the server locks per write anyway
+      if (saved) Object.assign(r, saved, { rank: r.rank }); // only the last reply has all 3 scores
       toast(`บันทึกคะแนน${r.name ? ' ' + r.name : ''} แล้ว ✓`);
     } catch (e) {
       Object.assign(r, before); rerank(); toast('บันทึกไม่สำเร็จ: ' + (e.message || e)); render();
@@ -749,7 +756,7 @@ async function load() {
 // live updates: the LINE bot or another device edits the Sheet -> server stamp moves -> merge the changed rows in place
 let syncing = false;
 async function poll(force) {
-  if (syncing || !me || me.status !== 'approved' || document.hidden || $('bookView').hidden || !profile || seenVer === null) return;
+  if (syncing || writing || !me || me.status !== 'approved' || document.hidden || $('bookView').hidden || !profile || seenVer === null) return;
   syncing = true;
   try {
     const v = (await api('ver')).ver;
@@ -762,8 +769,9 @@ document.addEventListener('visibilitychange', () => {
   if (!$('bookView').hidden) poll(); else if (!$('profilesView').hidden) loadProfiles();
 });
 async function sync() {
-  const want = profile.id, fresh = await run('getData', want);
+  const want = profile.id, gen = writeGen, fresh = await run('getData', want);
   if (!profile || profile.id !== want) return;
+  if (gen !== writeGen || writing) { seenVer = ''; return; } // a save ran meanwhile: snapshot may be stale, sync again next tick
   const byId = new Map(rows.map(r => [r.id, r])), keep = new Set(fresh.map(r => r.id));
   let added = false;
   for (const f of fresh) {
