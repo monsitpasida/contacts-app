@@ -112,6 +112,7 @@
   /* phone scoring deck: one card at a time, tap 1-10, swipe right to skip */
   .deck { display:flex; flex-direction:column; gap:10px; }
   .deck .top { display:flex; justify-content:space-between; align-items:center; color:var(--muted); }
+  .deck { overflow-x:clip; } /* a card flying off never widens the page */
   .deck .card.swipe { content-visibility:visible; touch-action:pan-y; user-select:none; -webkit-user-select:none; gap:10px; padding:14px; }
   .deck h2 { margin:0; font-size:22px; overflow-wrap:anywhere; }
   .deck .sub { color:var(--muted); margin-top:-6px; }
@@ -304,8 +305,11 @@ function deck(list) {
   const go = skip => { // card flies off (right = skipped, up-left = scored), then the next one comes in
     if (gone) return; gone = true;
     if (skip) deckSkip.add(r.id);
-    const x = skip ? '120%' : '-120%';
-    c.animate([{ transform: c.style.transform || 'none' }, { transform: `translateX(${x}) rotate(${skip ? 12 : -12}deg)`, opacity: 0 }], { duration: 260, easing: 'ease-in', fill: 'forwards' })
+    // skipped: flies off to the right. saved: flashes green and drops down, like filing it away
+    const out = skip ? [{ transform: c.style.transform || 'none' }, { transform: 'translateX(120%) rotate(12deg)', opacity: 0 }]
+      : [{ transform: 'none', boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)' }, { transform: 'translateY(-12px)', boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)', offset: .3 },
+         { transform: 'translateY(110vh) scale(.9)', opacity: .2, boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)' }];
+    c.animate(out, { duration: skip ? 260 : 520, easing: skip ? 'ease-in' : 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' })
       .finished.then(() => { if (useDeck()) { render(); const n = $('list').querySelector('.card.swipe'); n && n.animate([{ transform: 'scale(.94)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 200, easing: 'ease-out' }); } });
   };
   // taps only mark the card; once all 3 are picked, save them together and bring up the next person
