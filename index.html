@@ -303,11 +303,16 @@ function render() {
 }
 
 // ---------- phone scoring deck ----------
-let deckSkip = new Set(), deckList = false; // skipped ids come back after everyone else; deckList = user chose the normal list
+let deckList = false; // user chose the normal list
+// skipped ids, remembered per address book on this device, so reopening the app continues where you left off
+const skipKey = () => 'deckSkip_' + profile.id;
+const getSkip = () => { try { return new Set(JSON.parse(store.get(skipKey()) || '[]')); } catch { return new Set(); } };
+const setSkip = set => store.set(skipKey(), set.size ? JSON.stringify([...set]) : null);
 const useDeck = () => filter === 'unscored' && !wide.matches && !deckList && !selecting;
 function deck(list) {
-  let r = list.find(x => !deckSkip.has(x.id));
-  if (!r && list.length) { deckSkip.clear(); r = list[0]; } // went through everyone: start the skipped ones again
+  const skipped = getSkip();
+  let r = list.find(x => !skipped.has(x.id));
+  if (!r && list.length) { setSkip(new Set()); r = list[0]; } // went through everyone: start the skipped ones again
   const toList = el('button', { className: 'ghost', textContent: 'ดูแบบรายการ' });
   toList.onclick = () => { deckList = true; render(); };
   const wrap = el('div', { className: 'deck' }, el('div', { className: 'top' }, el('span', { textContent: `เหลือ ${list.length} คน` }), toList));
@@ -317,7 +322,7 @@ function deck(list) {
   let gone = false;
   const go = skip => { // card flies off (right = skipped, up-left = scored), then the next one comes in
     if (gone) return; gone = true;
-    if (skip) deckSkip.add(r.id);
+    if (skip) setSkip(getSkip().add(r.id));
     // skipped: flies off to the right. saved: flashes green and drops down, like filing it away
     const out = skip ? [{ transform: c.style.transform || 'none' }, { transform: 'translateX(120%) rotate(12deg)', opacity: 0 }]
       : [{ transform: 'none', boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)' }, { transform: 'translateY(-12px)', boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)', offset: .3 },
