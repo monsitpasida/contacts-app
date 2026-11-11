@@ -109,6 +109,18 @@
   main.tableMode #more, main.tableMode .empty { display:block; margin:12px auto; }
   #toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:#eef4ff; color:#06122e; padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:calc(100vw - 32px); }
   #toast.show { opacity:1; }
+  /* phone scoring deck: one card at a time, tap 1-10, swipe right to skip */
+  .deck { display:flex; flex-direction:column; gap:10px; }
+  .deck .top { display:flex; justify-content:space-between; align-items:center; color:var(--muted); }
+  .deck .card.swipe { content-visibility:visible; touch-action:pan-y; user-select:none; -webkit-user-select:none; gap:10px; padding:14px; }
+  .deck h2 { margin:0; font-size:22px; overflow-wrap:anywhere; }
+  .deck .sub { color:var(--muted); margin-top:-6px; }
+  .deck .lbl { font-size:14px; color:var(--muted); margin-bottom:4px; }
+  .pad { display:grid; grid-template-columns:repeat(5,1fr); gap:5px; }
+  .pad button { padding:7px 0; font-size:16px; background:var(--card); border:1px solid var(--line); box-shadow:none; }
+  .pad button[aria-pressed=true] { background:linear-gradient(135deg,#2f7cf6,#3fb4ff); border-color:transparent; box-shadow:0 0 14px rgba(63,162,255,.5); }
+  .deck .skip { align-self:flex-end; }
+  .deck .hint { text-align:center; font-size:13px; color:var(--muted); }
   #toast.ok { background:#16a34a; color:#fff; }
 
   /* login / pending / users */
@@ -258,6 +270,7 @@ function render() {
   autoMore.disconnect();
   const list = visible(), main = $('list'), page = list.slice(0, shown);
   main.classList.toggle('tableMode', wide.matches);
+  if (useDeck()) { main.replaceChildren(deck(list)); $('count').textContent = `${list.length} / ${rows.length} คน`; return; }
   main.replaceChildren(...(wide.matches ? (page.length ? [table(page)] : []) : page.map(card)));
   if (!list.length) main.append(el('div', { className: 'empty', textContent: rows.length ? 'ไม่พบรายชื่อที่ตรงกับตัวกรอง' : 'ยังไม่มีรายชื่อในโปรไฟล์นี้ — กด "นำเข้า .vcf" หรือ "+ เพิ่มรายชื่อ"' }));
   if (list.length > shown) {
@@ -268,6 +281,64 @@ function render() {
   }
   $('count').textContent = `${list.length} / ${rows.length} คน`;
   if (selecting) selBar();
+}
+
+// ---------- phone scoring deck ----------
+let deckSkip = new Set(), deckList = false; // skipped ids come back after everyone else; deckList = user chose the normal list
+const useDeck = () => filter === 'unscored' && !wide.matches && !deckList && !selecting;
+function deck(list) {
+  let r = list.find(x => !deckSkip.has(x.id));
+  if (!r && list.length) { deckSkip.clear(); r = list[0]; } // went through everyone: start the skipped ones again
+  const toList = el('button', { className: 'ghost', textContent: 'ดูแบบรายการ' });
+  toList.onclick = () => { deckList = true; render(); };
+  const wrap = el('div', { className: 'deck' }, el('div', { className: 'top' }, el('span', { textContent: `เหลือ ${list.length} คน` }), toList));
+  if (!r) return wrap.append(el('div', { className: 'empty', textContent: 'ให้คะแนนครบทุกคนแล้ว 🎉' })), wrap;
+
+  const c = el('article', { className: 'card swipe' });
+  let gone = false;
+  const go = skip => { // card flies off (right = skipped, up-left = scored), then the next one comes in
+    if (gone) return; gone = true;
+    if (skip) deckSkip.add(r.id);
+    const x = skip ? '120%' : '-120%';
+    c.animate([{ transform: c.style.transform || 'none' }, { transform: `translateX(${x}) rotate(${skip ? 12 : -12}deg)`, opacity: 0 }], { duration: 260, easing: 'ease-in', fill: 'forwards' })
+      .finished.then(() => { if (useDeck()) { render(); const n = $('list').querySelector('.card.swipe'); n && n.animate([{ transform: 'scale(.94)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 200, easing: 'ease-out' }); } });
+  };
+  const pad = ([f, label]) => {
+    const btns = Array.from({ length: 10 }, (_, i) => el('button', { type: 'button', textContent: i + 1, ariaLabel: `${label} ${i + 1}` }));
+    const mark = () => btns.forEach((b, i) => b.setAttribute('aria-pressed', String(r[f]) === String(i + 1)));
+    btns.forEach((b, i) => b.onclick = async () => {
+      if (gone) return;
+      const before = r[f], v = String(i + 1); r[f] = v; mark(); rerank();
+      if (scored(r)) setTimeout(() => go(false), 250);
+      try { const saved = await run('updateField', r.id, f, v); Object.assign(r, saved, { rank: r.rank }); toast('บันทึกแล้ว ✓'); }
+      catch (e) { r[f] = before; rerank(); toast('บันทึกไม่สำเร็จ: ' + (e.message || e)); render(); }
+    });
+    mark();
+    return el('div', {}, el('div', { className: 'lbl', textContent: label }), el('div', { className: 'pad' }, ...btns));
+  };
+  const skip = el('button', { className: 'ghost skip', type: 'button', textContent: 'ข้าม →' });
+  skip.onclick = () => go(true);
+  c.append(el('h2', { textContent: r.name || 'ไม่มีชื่อ' }), ...(r.job ? [el('div', { className: 'sub', textContent: r.job })] : []),
+    el('div', { className: 'links' }, ...contactLinks(r.contact)), ...SCORES.map(pad), skip);
+
+  // swipe right to skip; a short drag springs back
+  let x0 = null, dx = 0;
+  c.addEventListener('pointerdown', e => { if (!gone) { x0 = e.clientX; dx = 0; } });
+  c.addEventListener('pointermove', e => {
+    if (x0 === null) return;
+    dx = Math.max(0, e.clientX - x0);
+    if (dx > 10) { c.setPointerCapture(e.pointerId); c.style.transform = `translateX(${dx}px) rotate(${dx / 25}deg)`; c.style.opacity = String(1 - dx / 600); }
+  });
+  const end = () => {
+    if (x0 === null) return; x0 = null;
+    if (dx > 90) return go(true);
+    c.style.transition = 'transform .2s, opacity .2s'; c.style.transform = ''; c.style.opacity = '';
+    setTimeout(() => { c.style.transition = ''; }, 200);
+  };
+  c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
+  c.addEventListener('click', e => { if (dx > 10) { e.stopPropagation(); e.preventDefault(); } }, true); // a drag that ends on a button is not a tap
+  wrap.append(c, el('div', { className: 'hint', textContent: 'กดคะแนนให้ครบ 3 ข้อ หรือปัดขวาเพื่อข้าม' }));
+  return wrap;
 }
 
 function contactLinks(contact) {
@@ -376,6 +447,7 @@ function selBar() {
 function setSelecting(on) {
   selecting = on; picked.clear(); selBar();
   // swap 🗑 <-> checkbox in place so the page stays where it is
+  if (filter === 'unscored' && !wide.matches && !deckList) return render(); // deck <-> list with checkboxes
   $('list').querySelectorAll(on ? '.trash' : '.pick').forEach(x => { const r = ownerOf.get(x); if (r) x.replaceWith(on ? pickBox(r) : deleteButton(r)); });
 }
 // deleted row slides right and fades, then (cards) folds its height closed before leaving the page
@@ -546,7 +618,7 @@ function parseVCF(text) {
 // ---------- actions ----------
 $('q').addEventListener('input', () => { shown = PAGE; render(); });
 document.querySelectorAll('.chip').forEach(b => b.onclick = () => {
-  filter = b.dataset.f; shown = PAGE;
+  filter = b.dataset.f; shown = PAGE; deckList = false;
   document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b));
   render();
 });
