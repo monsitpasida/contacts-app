@@ -107,8 +107,8 @@
   .tableWrap td.c-diligent, .tableWrap td.c-close, .tableWrap td.c-manner { width:70px; }
   .tableWrap tbody tr:hover { background:var(--accent-soft); }
   main.tableMode #more, main.tableMode .empty { display:block; margin:12px auto; }
-  #toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:#eef4ff; color:#06122e; padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:calc(100vw - 32px); }
-  #toast.show { opacity:1; }
+  #toast { position:fixed; z-index:50; left:50%; top:calc(12px + env(safe-area-inset-top)); transform:translate(-50%, -140%); transition:opacity .2s, transform .25s ease-out; background:#eef4ff; color:#06122e; padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; pointer-events:none; max-width:calc(100vw - 32px); box-shadow:0 8px 24px rgba(0,8,40,.45); }
+  #toast.show { opacity:1; transform:translate(-50%, 0); } /* drops in from the top */
   /* phone scoring deck: one card at a time, tap 1-10, swipe right to skip */
   .deck { display:flex; flex-direction:column; gap:10px; }
   .deck .top { display:flex; justify-content:space-between; align-items:center; color:var(--muted); }
