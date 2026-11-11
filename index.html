@@ -128,6 +128,10 @@
   .pad button[aria-pressed=true] { background:linear-gradient(135deg,#2f7cf6,#3fb4ff); border-color:transparent; box-shadow:0 0 14px rgba(63,162,255,.5); }
   .deck .skip { align-self:flex-end; }
   .deck .hint { text-align:center; font-size:13px; color:var(--muted); }
+  .avatar { border-radius:50%; object-fit:cover; flex:none; border:1px solid var(--line); background:var(--card2); }
+  .card .head .avatar { width:36px; height:36px; }
+  .tableWrap .nm { display:flex; align-items:center; gap:6px; } .tableWrap .nm .avatar { width:28px; height:28px; } .tableWrap .nm input { min-width:0; flex:1; }
+  .deck .who { display:flex; align-items:center; gap:12px; } .deck .who .avatar { width:64px; height:64px; border-width:2px; }
   #toast.ok { background:#16a34a; color:#fff; }
   #toast.del { background:#dc2626; color:#fff; }
 
@@ -220,8 +224,9 @@ let rows = [], filter = 'all', shown = PAGE, profile = null; // profile = {id, n
 const $ = id => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
 const ARGS = { listProfiles: () => ({}), createProfile: name => ({ name }), renameProfile: (id, name) => ({ id, name }), deleteProfile: (id, typed) => ({ id, typed }),
-  getData: profileId => ({ profileId }), updateField: (id, field, value) => ({ id, field, value }), addContacts: (profileId, list) => ({ profileId, list }), deleteContact: id => ({ id }), deleteContacts: ids => ({ ids }) };
-const PICK = { listProfiles: 'profiles', createProfile: 'profile', getData: 'rows', updateField: 'row' };
+  getData: profileId => ({ profileId }), updateField: (id, field, value) => ({ id, field, value }), addContacts: (profileId, list) => ({ profileId, list }), deleteContact: id => ({ id }), deleteContacts: ids => ({ ids }),
+  pendingImage: imgId => ({ imgId }), setPhotos: items => ({ items }) };
+const PICK = { listProfiles: 'profiles', createProfile: 'profile', getData: 'rows', updateField: 'row', pendingImage: 'image' };
 let writing = 0, writeGen = 0; // writes in flight / counter, so live sync can't apply a snapshot taken mid-save
 const run = (fn, ...args) => {
   const write = fn !== 'getData' && fn !== 'listProfiles';
@@ -302,6 +307,45 @@ function render() {
   if (selecting) selBar();
 }
 
+// ---------- profile photos ----------
+// face cut out of a LINE screenshot (stored as a small data: URL); nothing shown while it is still "pending:..."
+const hasPhoto = r => /^data:image\//.test(r.photo || '');
+const avatar = (r, size) => hasPhoto(r) ? el('img', { className: 'avatar', src: r.photo, alt: '', width: size, height: size }) : null;
+// the LINE bot can't crop images, so it leaves "pending:<screenshot>:<left,top,right,bottom in 0-1000>"; cut those faces out here
+let cropping = false;
+async function cropPending() {
+  if (cropping || !profile) return;
+  const want = rows.filter(r => String(r.photo || '').startsWith('pending:'));
+  if (!want.length) return;
+  cropping = true;
+  try {
+    const byImg = new Map();
+    for (const r of want) { const [, id, box] = r.photo.split(':'); (byImg.get(id) || byImg.set(id, []).get(id)).push([r, box.split(',').map(Number)]); }
+    const items = [];
+    for (const [imgId, list] of byImg) {
+      const img = await run('pendingImage', imgId).catch(() => undefined);
+      if (img === undefined) continue; // offline: try next time
+      let pic = null;
+      if (img) { pic = new Image(); pic.src = `data:${img.mime};base64,${img.data}`; try { await pic.decode(); } catch { pic = null; } }
+      for (const [r, [x1, y1, x2, y2]] of list) items.push({ id: r.id, photo: pic ? faceCrop(pic, x1, y1, x2, y2) : '' }); // screenshot gone/broken: clear the mark
+    }
+    if (!items.length) return;
+    await run('setPhotos', items);
+    const got = new Map(items.map(i => [i.id, i.photo]));
+    rows.forEach(r => { if (got.has(r.id)) r.photo = got.get(r.id); });
+    if (!$('list').contains(document.activeElement)) render();
+  } catch (e) { /* keep the marks; the next load tries again */ } finally { cropping = false; }
+}
+// square around the box centre (a little margin), scaled to 96px JPEG: a few KB per person
+function faceCrop(pic, x1, y1, x2, y2) {
+  const W = pic.naturalWidth, H = pic.naturalHeight;
+  const cx = (x1 + x2) / 2000 * W, cy = (y1 + y2) / 2000 * H, side = Math.max((x2 - x1) / 1000 * W, (y2 - y1) / 1000 * H) * 1.08;
+  const cv = Object.assign(document.createElement('canvas'), { width: 96, height: 96 }), g = cv.getContext('2d');
+  g.fillStyle = '#0f2458'; g.fillRect(0, 0, 96, 96);
+  g.drawImage(pic, cx - side / 2, cy - side / 2, side, side, 0, 0, 96, 96);
+  return cv.toDataURL('image/jpeg', 0.82);
+}
+
 // ---------- phone scoring deck ----------
 let deckList = false; // user chose the normal list
 // skipped ids, remembered per address book on this device, so reopening the app continues where you left off
@@ -375,7 +419,7 @@ function deck(list) {
   };
   const skip = el('button', { className: 'ghost skip', type: 'button', textContent: 'ข้าม →' });
   skip.onclick = () => go(true);
-  c.append(el('h2', { textContent: r.name || 'ไม่มีชื่อ' }), ...(r.job ? [el('div', { className: 'sub', textContent: r.job })] : []),
+  c.append(el('div', { className: 'who' }, ...[avatar(r, 64)].filter(Boolean), el('h2', { textContent: r.name || 'ไม่มีชื่อ' })), ...(r.job ? [el('div', { className: 'sub', textContent: r.job })] : []),
     el('div', { className: 'links' }, ...contactLinks(r.contact)), ...SCORES.map(pad), skip);
 
   // swipe right to skip, left to delete (asks first); a short drag springs back
@@ -454,7 +498,7 @@ function card(r) {
     field('อาชีพ', 'job'), field('รายได้', 'income'), field('เรื่องที่อยากคุย', 'topic', 'area'),
     field('ช่องทางติดต่อ', 'channel', 'channel'), field('ข้อมูลติดต่อ (คั่นด้วย ,)', 'contact'), field('หมายเหตุ', 'note', 'area')));
 
-  c.append(el('div', { className: 'head' }, rank, name, badge, del), links, scores,
+  c.append(el('div', { className: 'head' }, rank, ...[avatar(r, 36)].filter(Boolean), name, badge, del), links, scores,
     el('div', { className: 'row2' }, el('label', { className: 'f' }, 'ผลการติดต่อ', result), el('label', { className: 'f' }, 'ลงนัดวันที่', date)), more);
   shownEl.set(r, { el: c, refresh });
   return c;
@@ -588,7 +632,8 @@ function tableRow(r) {
     if (f === 'note') grow(i);
     i.ariaLabel = COLUMNS.find(([k]) => k === f)[1] + ' ' + (r.name || '');
     bind(i, r, f, refresh);
-    return el('td', { className: 'c-' + f }, i);
+    const pic = f === 'name' && avatar(r, 28);
+    return el('td', { className: 'c-' + f }, pic ? el('div', { className: 'nm' }, pic, i) : i);
   };
   const tr = el('tr', {}, ...COLUMNS.map(([f]) => cellFor(f)));
   shownEl.set(r, { el: tr, refresh });
@@ -764,6 +809,7 @@ async function load() {
     const data = await run('getData', want);
     if (!profile || profile.id !== want) return; // switched away while loading
     rows = data; rerank(); render(); // scores the LINE bot edits don't update stored ranks, so rank here
+    cropPending();
   } catch (e) { $('count').textContent = 'โหลดไม่สำเร็จ'; toast('โหลดไม่สำเร็จ: ' + (e.message || e)); }
 }
 // live updates: the LINE bot or another device edits the Sheet -> server stamp moves -> merge the changed rows in place
@@ -804,6 +850,7 @@ async function sync() {
   }
   if (rows.some(r => !keep.has(r.id))) removeShown(r => !keep.has(r.id));
   else { const old = new Map(rows.map(x => [x, x.rank])); rerank(); rows.forEach(x => { const n = shownEl.get(x); if (n && old.get(x) !== x.rank) n.refresh(); }); }
+  cropPending();
   if (added && !$('list').contains(document.activeElement)) render(); // new people from the bot: rare, so a full redraw is fine
   else $('count').textContent = `${visible().length} / ${rows.length} คน`;
 }
