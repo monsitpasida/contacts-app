@@ -123,6 +123,7 @@
   .deck .skip { align-self:flex-end; }
   .deck .hint { text-align:center; font-size:13px; color:var(--muted); }
   #toast.ok { background:#16a34a; color:#fff; }
+  #toast.del { background:#dc2626; color:#fff; }
 
   /* login / pending / users */
   .center { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px 16px; gap:14px; }
@@ -225,7 +226,7 @@ const total = r => SCORES.reduce((s, [f]) => s + (Number(r[f]) || 0), 0);
 const scored = r => SCORES.every(([f]) => r[f]);
 const today = () => new Date().toLocaleDateString('sv');
 let toastTimer;
-function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.toggle('ok', /✓$/.test(msg)); /* success messages end with ✓ */ t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2500); }
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.toggle('ok', /✓$/.test(msg)); /* success messages end with ✓ */ t.classList.toggle('del', /^ลบ.*แล้ว$/.test(msg)); /* ลบแล้ว / ลบ N รายชื่อแล้ว / ลบโปรไฟล์แล้ว */ t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2500); }
 
 // same rule as the server: by total, ties keep sheet order
 function rerank() {
