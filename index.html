@@ -36,7 +36,13 @@
   .askBack { position:fixed; inset:0; z-index:20; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:16px; }
   #ask p { margin:0 0 12px; white-space:pre-line; }
   #ask input { width:100%; margin-bottom:12px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg2); color:var(--text); font:inherit; font-size:16px; }
-  #ask .row { display:flex; gap:8px; justify-content:flex-end; }
+  #ask .row { display:flex; gap:10px; }
+  #ask .row button { flex:1; min-height:48px; font-size:16px; font-weight:600; } /* big, equal halves: easy to hit with a thumb */
+  #ask { animation:askIn .16s ease-out; }
+  @keyframes askIn { from { transform:scale(.94); opacity:0; } }
+  /* every button visibly reacts to the finger (iPhone shows no pressed state by default) */
+  button { touch-action:manipulation; -webkit-tap-highlight-color:transparent; transition:transform .08s, filter .08s; }
+  button:active:not(:disabled) { transform:scale(.95); filter:brightness(1.25); }
   .selBar { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(12px + env(safe-area-inset-bottom)); z-index:6; width:min(560px, calc(100vw - 32px)); margin:0; box-shadow:var(--glow); padding:8px 10px; align-items:center; background:var(--card2); border:1px solid var(--line); border-radius:12px; }
   .selBar #selCount { flex:1; font-weight:600; }
   button:disabled { opacity:.45; cursor:default; }
@@ -225,6 +231,7 @@ const run = (fn, ...args) => {
 const total = r => SCORES.reduce((s, [f]) => s + (Number(r[f]) || 0), 0);
 const scored = r => SCORES.every(([f]) => r[f]);
 const today = () => new Date().toLocaleDateString('sv');
+document.addEventListener('touchstart', () => {}, { passive: true }); // iOS Safari only shows :active pressed styles when a touch listener exists
 let toastTimer;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.toggle('ok', /✓$/.test(msg)); /* success messages end with ✓ */ t.classList.toggle('del', /^ลบ.*แล้ว$/.test(msg)); /* ลบแล้ว / ลบ N รายชื่อแล้ว / ลบโปรไฟล์แล้ว */ t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2500); }
 
