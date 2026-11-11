@@ -203,6 +203,7 @@ const ARGS = { listProfiles: () => ({}), createProfile: name => ({ name }), rena
 const PICK = { listProfiles: 'profiles', createProfile: 'profile', getData: 'rows', updateField: 'row' };
 const run = (fn, ...args) => api(fn, ARGS[fn](...args)).then(d => (PICK[fn] ? d[PICK[fn]] : d));
 const total = r => SCORES.reduce((s, [f]) => s + (Number(r[f]) || 0), 0);
+const scored = r => SCORES.every(([f]) => r[f]);
 const today = () => new Date().toLocaleDateString('sv');
 let toastTimer;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2500); }
@@ -215,7 +216,7 @@ function rerank() {
 function visible() {
   const q = $('q').value.trim().toLowerCase(), d = today();
   let list = rows.filter(r => {
-    if (filter === 'unscored' && total(r) > 0) return false;
+    if (filter === 'unscored' && scored(r)) return false; // stays in the list until all 3 scores are in
     if (filter === 'todo' && (r.result || 'ยังไม่ติดต่อ') !== 'ยังไม่ติดต่อ') return false;
     if (filter === 'appt' && !(r.date && r.date >= d)) return false;
     return !q || [r.name, r.contact, r.job, r.note, r.topic].join(' ').toLowerCase().includes(q);
@@ -392,6 +393,12 @@ function removeShown(gone) {
   const list = visible(); $('count').textContent = `${list.length} / ${rows.length} คน`;
   if (!list.length) render();
 }
+// hide a row that no longer matches the filter (data kept), with the same slide as delete
+function leaveView(r) {
+  const n = shownEl.get(r); if (n && n.el.isConnected) slideOut(n.el);
+  const list = visible(); $('count').textContent = `${list.length} / ${rows.length} คน`;
+  if (!list.length) setTimeout(render, 600);
+}
 $('selectBtn').onclick = () => setSelecting(true);
 $('selCancel').onclick = () => setSelecting(false);
 $('selAll').onclick = () => {
@@ -480,6 +487,9 @@ function bind(input, r, f, refresh) {
     input.value = v;
     if (v === before) return;
     r[f] = v; rerank(); refresh();
+    // scoring queue: once all 3 scores are in, the card slides away and the next person moves up
+    const done = filter === 'unscored' && SCORES.some(([k]) => k === f) && scored(r);
+    if (done) setTimeout(() => leaveView(r), 350);
     input.classList.add('saving');
     try {
       const saved = await run('updateField', r.id, f, v);
@@ -487,6 +497,7 @@ function bind(input, r, f, refresh) {
       toast('บันทึกแล้ว ✓');
     } catch (e) {
       r[f] = before; input.value = before || ''; if (input.classList.contains('tint')) input.dataset.v = input.value; rerank(); refresh();
+      if (done) render(); // bring the card back so the failed score can be fixed
       toast('บันทึกไม่สำเร็จ: ' + (e.message || e));
     } finally { input.classList.remove('saving'); }
   });

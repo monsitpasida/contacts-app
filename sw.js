@@ -1,5 +1,5 @@
 // keeps the app shell available offline; data always comes live from the server (POST, never cached)
-const CACHE = 'contacts-v1';
+const CACHE = 'contacts-v2';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png', 'icons/icon-32.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
