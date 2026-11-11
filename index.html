@@ -609,19 +609,56 @@ function openBook(p, push) {
 $('back').onclick = () => showProfiles(true);
 window.addEventListener('popstate', e => { if (!me) return; const st = e.state || {}; st.p ? openBook({ id: st.p, name: st.n }) : st.v === 'users' ? showUsers() : showProfiles(); });
 
+let seenVer = null; // server change stamp this page last synced to
 async function load() {
   const want = profile && profile.id;
   try {
+    seenVer = (await api('ver')).ver; // stamp first, so an edit landing during the fetch is still picked up by the next poll
     const data = await run('getData', want);
     if (!profile || profile.id !== want) return; // switched away while loading
     rows = data; rerank(); render(); // scores the LINE bot edits don't update stored ranks, so rank here
   } catch (e) { $('count').textContent = 'โหลดไม่สำเร็จ'; toast('โหลดไม่สำเร็จ: ' + (e.message || e)); }
 }
-// another device may have changed things: reload when the tab comes back (unless typing)
+// live updates: the LINE bot or another device edits the Sheet -> server stamp moves -> merge the changed rows in place
+let syncing = false;
+async function poll(force) {
+  if (syncing || !me || me.status !== 'approved' || document.hidden || $('bookView').hidden || !profile || seenVer === null) return;
+  syncing = true;
+  try {
+    const v = (await api('ver')).ver;
+    if (force || v !== seenVer) { seenVer = v; await sync(); }
+  } catch (e) { /* offline or busy: try again next tick */ } finally { syncing = false; }
+}
+setInterval(poll, 6000);
 document.addEventListener('visibilitychange', () => {
-  if (!me || me.status !== 'approved' || document.hidden || document.activeElement.matches('input,textarea,select')) return;
-  if (!$('bookView').hidden) load(); else if (!$('profilesView').hidden) loadProfiles();
+  if (document.hidden || !me || me.status !== 'approved') return;
+  if (!$('bookView').hidden) poll(); else if (!$('profilesView').hidden) loadProfiles();
 });
+async function sync() {
+  const want = profile.id, fresh = await run('getData', want);
+  if (!profile || profile.id !== want) return;
+  const byId = new Map(rows.map(r => [r.id, r])), keep = new Set(fresh.map(r => r.id));
+  let added = false;
+  for (const f of fresh) {
+    const r = byId.get(f.id);
+    if (!r) { rows.push(f); added = true; continue; }
+    if (!Object.keys(f).some(k => k !== 'rank' && String(f[k] ?? '') !== String(r[k] ?? ''))) continue;
+    const n = shownEl.get(r);
+    if (n && n.el.contains(document.activeElement)) continue; // being edited here: don't yank it; the next change will sync it
+    Object.assign(r, f, { rank: r.rank });
+    if (n && n.el.isConnected) {
+      const open = n.el.querySelector('details[open]');
+      const el2 = wide.matches ? tableRow(r) : card(r);
+      if (open) el2.querySelector('details').open = true;
+      n.el.replaceWith(el2);
+      el2.animate([{ boxShadow: '0 0 0 2px #6fd3ff, 0 0 24px rgba(111,211,255,.6)' }, { boxShadow: 'none' }], { duration: 1600, easing: 'ease-out' }); // "just updated" glow
+    }
+  }
+  if (rows.some(r => !keep.has(r.id))) removeShown(r => !keep.has(r.id));
+  else { const old = new Map(rows.map(x => [x, x.rank])); rerank(); rows.forEach(x => { const n = shownEl.get(x); if (n && old.get(x) !== x.rank) n.refresh(); }); }
+  if (added && !$('list').contains(document.activeElement)) render(); // new people from the bot: rare, so a full redraw is fine
+  else $('count').textContent = `${visible().length} / ${rows.length} คน`;
+}
 
 // ---------- server + sign-in ----------
 const API_URL = 'https://script.google.com/macros/s/AKfycbw1KMSL-NJ9Qogh4LQDDEmj4O3anODvfEnbBqfwu2PelMhL3QpCtF6pPF9m6AkkHVlJlw/exec';
