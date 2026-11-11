@@ -272,6 +272,11 @@ function render() {
   main.classList.toggle('tableMode', wide.matches);
   if (useDeck()) { main.replaceChildren(deck(list)); $('count').textContent = `${list.length} / ${rows.length} คน`; return; }
   main.replaceChildren(...(wide.matches ? (page.length ? [table(page)] : []) : page.map(card)));
+  if (filter === 'unscored' && !wide.matches && !selecting && list.length) { // way back to the one-at-a-time deck
+    const toDeck = el('button', { className: 'ghost', textContent: '🃏 ดูแบบการ์ด' });
+    toDeck.onclick = () => { deckList = false; render(); };
+    main.prepend(el('div', { className: 'deck' }, el('div', { className: 'top' }, el('span', { textContent: `เหลือ ${list.length} คน` }), toDeck)));
+  }
   if (!list.length) main.append(el('div', { className: 'empty', textContent: rows.length ? 'ไม่พบรายชื่อที่ตรงกับตัวกรอง' : 'ยังไม่มีรายชื่อในโปรไฟล์นี้ — กด "นำเข้า .vcf" หรือ "+ เพิ่มรายชื่อ"' }));
   if (list.length > shown) {
     const more = el('button', { id: 'more', className: 'ghost', textContent: `แสดงเพิ่ม (${list.length - shown})` });
@@ -485,6 +490,7 @@ function removeShown(gone) {
 function leaveView(r) {
   const n = shownEl.get(r); if (n && n.el.isConnected) slideOut(n.el);
   const list = visible(); $('count').textContent = `${list.length} / ${rows.length} คน`;
+  const left = $('list').querySelector('.deck .top span'); if (left) left.textContent = `เหลือ ${list.length} คน`;
   if (!list.length) setTimeout(render, 600);
 }
 $('selectBtn').onclick = () => setSelecting(true);
