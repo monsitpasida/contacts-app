@@ -88,7 +88,7 @@
   details .more { display:grid; gap:8px; margin-top:8px; }
   .saving { outline:2px solid var(--accent); outline-offset:1px; }
   #more { grid-column:1/-1; justify-self:center; }
-  .empty { grid-column:1/-1; text-align:center; color:var(--muted); padding:40px 0; }
+  .empty { grid-column:1/-1; text-align:center; color:var(--muted); padding:40px 0; white-space:pre-line; }
   .back { padding:6px 12px; font-size:18px; line-height:1; }
   .pcard { background:linear-gradient(180deg,var(--card2),var(--card)); border:1px solid var(--line); box-shadow:var(--glow); border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px; }
   .pcard h2 { margin:0; font-size:18px; word-break:break-word; }
@@ -192,6 +192,7 @@
     <button class="chip" data-f="unscored" aria-pressed="false">ยังไม่ให้คะแนน</button>
     <button class="chip" data-f="todo" aria-pressed="false">ยังไม่ติดต่อ</button>
     <button class="chip" data-f="appt" aria-pressed="false">มีนัด</button>
+    <button class="chip" data-f="skip" aria-pressed="false">ข้ามไว้</button>
   </div>
 </header>
 <div class="actions" style="padding:0 16px">
@@ -250,7 +251,8 @@ function visible() {
   const q = $('q').value.trim().toLowerCase(), d = today();
   let list = rows.filter(r => {
     if (filter === 'today' && r.added !== d) return false;
-    if (filter === 'unscored' && scored(r)) return false; // stays in the list until all 3 scores are in
+    if (filter === 'unscored' && (scored(r) || r.skip)) return false; // stays in the list until all 3 scores are in; skipped ones wait in ข้ามไว้
+    if (filter === 'skip' && !r.skip) return false;
     if (filter === 'todo' && (r.result || 'ยังไม่ติดต่อ') !== 'ยังไม่ติดต่อ') return false;
     if (filter === 'appt' && !(r.date && r.date >= d)) return false;
     return !q || [r.name, r.contact, r.job, r.note, r.topic].join(' ').toLowerCase().includes(q);
@@ -350,27 +352,36 @@ function faceCrop(pic, x1, y1, x2, y2) {
 
 // ---------- phone scoring deck ----------
 let deckList = false; // user chose the normal list
-// skipped ids, remembered per address book on this device, so reopening the app continues where you left off
-const skipKey = () => 'deckSkip_' + profile.id;
-const getSkip = () => { try { return new Set(JSON.parse(store.get(skipKey()) || '[]')); } catch { return new Set(); } };
-const setSkip = set => store.set(skipKey(), set.size ? JSON.stringify([...set]) : null);
+// "ข้ามไว้": skip column holds the date a person was set aside (swipe right here, or told to the LINE bot); '' = pulled back
+async function setSkipped(r, on) {
+  const before = r.skip; r.skip = on ? today() : '';
+  try { const saved = await run('updateField', r.id, 'skip', r.skip); if (saved) r.skip = saved.skip; return true; }
+  catch (e) { r.skip = before; toast('บันทึกไม่สำเร็จ: ' + (e.message || e)); render(); return false; }
+}
+function unskipButton(r) {
+  const b = el('button', { className: 'ghost', type: 'button', textContent: '↩ ดึงกลับ', title: 'ดึงกลับมาไว้ในรายชื่อที่ต้องให้คะแนน' });
+  b.onclick = async () => {
+    b.disabled = true;
+    if (filter === 'skip') leaveView(r); else b.remove();
+    if (await setSkipped(r, false)) toast(`ดึง${r.name ? ' ' + r.name : ''} กลับแล้ว ✓`);
+  };
+  return b;
+}
 const useDeck = () => filter === 'unscored' && !wide.matches && !deckList && !selecting;
 function deck(list) {
-  const skipped = getSkip();
-  let r = list.find(x => !skipped.has(x.id));
-  if (!r && list.length) { setSkip(new Set()); r = list[0]; } // went through everyone: start the skipped ones again
+  const r = list[0], parked = rows.filter(x => x.skip && !scored(x)).length;
   const toList = el('button', { className: 'ghost', textContent: 'ดูแบบรายการ' });
   toList.onclick = () => { deckList = true; render(); };
-  const pos = list.indexOf(r) + 1; // skipped ones before this card count as passed
-  const top = r ? `คนที่ ${pos} / ${list.length} · เหลืออีก ${list.length - pos} คน` : `เหลือ ${list.length} คน`;
+  const pos = parked + 1; // people set aside in ข้ามไว้ count as passed
+  const top = r ? `คนที่ ${pos} / ${list.length + parked} · เหลืออีก ${list.length - 1} คน` : `เหลือ ${list.length} คน`;
   const wrap = el('div', { className: 'deck' }, el('div', { className: 'top' }, el('span', { textContent: top }), toList));
-  if (!r) return wrap.append(el('div', { className: 'empty', textContent: 'ให้คะแนนครบทุกคนแล้ว 🎉' })), wrap;
+  if (!r) return wrap.append(el('div', { className: 'empty', textContent: 'ให้คะแนนครบทุกคนแล้ว 🎉' + (parked ? `\nข้ามไว้ ${parked} คน — ดูได้ที่ปุ่ม "ข้ามไว้"` : '') })), wrap;
 
   const c = el('article', { className: 'card swipe' });
   let gone = false;
   const go = skip => { // card flies off (right = skipped, up-left = scored), then the next one comes in
     if (gone) return; gone = true;
-    if (skip) setSkip(getSkip().add(r.id));
+    if (skip) setSkipped(r, true).then(ok => ok && toast(`ย้าย${r.name ? ' ' + r.name : ''} ไปไว้ใน ข้ามไว้ แล้ว ✓`));
     // skipped: flies off to the right. saved: flashes green and drops down, like filing it away
     const out = skip ? [{ transform: c.style.transform || 'none' }, { transform: 'translateX(120%) rotate(12deg)', opacity: 0 }]
       : [{ transform: 'none', boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)' }, { transform: 'translateY(-12px)', boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)', offset: .3 },
@@ -447,7 +458,7 @@ function deck(list) {
   };
   c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
   c.addEventListener('click', e => { if (dragging) { e.stopPropagation(); e.preventDefault(); } }, true); // a drag that ends on a button is not a tap
-  wrap.append(c, el('div', { className: 'hint', textContent: 'กดคะแนนให้ครบ 3 ข้อ · ปัดขวา = ข้าม · ปัดซ้าย = ลบ' }));
+  wrap.append(c, el('div', { className: 'hint', textContent: 'กดคะแนนให้ครบ 3 ข้อ · ปัดขวา = ข้ามไว้ก่อน · ปัดซ้าย = ลบ' }));
   return wrap;
 }
 
@@ -502,7 +513,7 @@ function card(r) {
     field('อาชีพ', 'job'), field('รายได้', 'income'), field('เรื่องที่อยากคุย', 'topic', 'area'),
     field('ช่องทางติดต่อ', 'channel', 'channel'), field('ข้อมูลติดต่อ (คั่นด้วย ,)', 'contact'), field('หมายเหตุ', 'note', 'area')));
 
-  c.append(el('div', { className: 'head' }, rank, ...[avatar(r, 36)].filter(Boolean), name, badge, del), links, scores,
+  c.append(el('div', { className: 'head' }, rank, ...[avatar(r, 36)].filter(Boolean), name, badge, ...(r.skip && !selecting ? [unskipButton(r)] : []), del), links, scores,
     el('div', { className: 'row2' }, el('label', { className: 'f' }, 'ผลการติดต่อ', result), el('label', { className: 'f' }, 'ลงนัดวันที่', date)), more);
   shownEl.set(r, { el: c, refresh });
   return c;
@@ -628,7 +639,7 @@ function tableRow(r) {
   const cellFor = f => {
     if (f === 'rank') return rank;
     if (f === 'total') return tot;
-    if (!f) return el('td', {}, selecting ? pickBox(r) : deleteButton(r));
+    if (!f) return el('td', {}, ...(selecting ? [pickBox(r)] : [...(r.skip ? [unskipButton(r)] : []), deleteButton(r)]));
     const i = SCORES.some(([k]) => k === f) ? select(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], r[f], o => o || '–')
       : f === 'channel' ? chSelect(r[f]) : f === 'result' ? tinted(RESULTS, r[f] || 'ยังไม่ติดต่อ', 'res')
       : f === 'date' ? el('input', { type: 'date', value: r[f] }) : (f === 'topic' || f === 'note') ? el('textarea', { rows: 1, value: r[f] })
