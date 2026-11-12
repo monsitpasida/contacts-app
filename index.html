@@ -133,6 +133,8 @@
   .tableWrap .nm { display:flex; align-items:center; gap:6px; } .tableWrap .nm .avatar { width:28px; height:28px; } .tableWrap .nm input { min-width:0; flex:1; }
   .deck .who { display:flex; align-items:center; gap:12px; } .deck .who .avatar { width:64px; height:64px; border-width:2px; }
   #toast.ok { background:#16a34a; color:#fff; }
+  button.pull { background:#16a34a; border-color:#22c55e; color:#fff; white-space:nowrap; } /* ↩ ดึงกลับ */
+  .acts { display:flex; gap:6px; align-items:center; justify-content:flex-end; }
   #toast.del { background:#dc2626; color:#fff; }
 
   /* login / pending / users */
@@ -359,7 +361,7 @@ async function setSkipped(r, on) {
   catch (e) { r.skip = before; toast('บันทึกไม่สำเร็จ: ' + (e.message || e)); render(); return false; }
 }
 function unskipButton(r) {
-  const b = el('button', { className: 'ghost', type: 'button', textContent: '↩ ดึงกลับ', title: 'ดึงกลับมาไว้ในรายชื่อที่ต้องให้คะแนน' });
+  const b = el('button', { className: 'pull', type: 'button', textContent: '↩ ดึงกลับ', title: 'ดึงกลับมาไว้ในรายชื่อที่ต้องให้คะแนน' });
   b.onclick = async () => {
     b.disabled = true;
     if (filter === 'skip') leaveView(r); else b.remove();
@@ -639,7 +641,7 @@ function tableRow(r) {
   const cellFor = f => {
     if (f === 'rank') return rank;
     if (f === 'total') return tot;
-    if (!f) return el('td', {}, ...(selecting ? [pickBox(r)] : [...(r.skip ? [unskipButton(r)] : []), deleteButton(r)]));
+    if (!f) return el('td', {}, el('div', { className: 'acts' }, ...(selecting ? [pickBox(r)] : [...(r.skip ? [unskipButton(r)] : []), deleteButton(r)])));
     const i = SCORES.some(([k]) => k === f) ? select(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], r[f], o => o || '–')
       : f === 'channel' ? chSelect(r[f]) : f === 'result' ? tinted(RESULTS, r[f] || 'ยังไม่ติดต่อ', 'res')
       : f === 'date' ? el('input', { type: 'date', value: r[f] }) : (f === 'topic' || f === 'note') ? el('textarea', { rows: 1, value: r[f] })
@@ -846,7 +848,7 @@ async function sync() {
   const want = profile.id, gen = writeGen, fresh = await run('getData', want);
   if (!profile || profile.id !== want) return;
   if (gen !== writeGen || writing) { seenVer = ''; return; } // a save ran meanwhile: snapshot may be stale, sync again next tick
-  const byId = new Map(rows.map(r => [r.id, r])), keep = new Set(fresh.map(r => r.id));
+  const byId = new Map(rows.map(r => [r.id, r])), keep = new Set(fresh.map(r => r.id)), wasShown = new Set(visible());
   let added = false;
   for (const f of fresh) {
     const r = byId.get(f.id);
@@ -866,7 +868,9 @@ async function sync() {
   if (rows.some(r => !keep.has(r.id))) removeShown(r => !keep.has(r.id));
   else { const old = new Map(rows.map(x => [x, x.rank])); rerank(); rows.forEach(x => { const n = shownEl.get(x); if (n && old.get(x) !== x.rank) n.refresh(); }); }
   cropPending();
-  if (added && !$('list').contains(document.activeElement)) render(); // new people from the bot: rare, so a full redraw is fine
+  // new people from the bot, or someone moved in/out of this filter (e.g. the bot put them in ข้ามไว้): redraw
+  const now = visible(), moved = now.length !== wasShown.size || now.some(x => !wasShown.has(x));
+  if ((added || moved) && !$('list').contains(document.activeElement)) render();
   else $('count').textContent = `${visible().length} / ${rows.length} คน`;
 }
 
