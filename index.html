@@ -361,7 +361,9 @@ function deck(list) {
   if (!r && list.length) { setSkip(new Set()); r = list[0]; } // went through everyone: start the skipped ones again
   const toList = el('button', { className: 'ghost', textContent: 'ดูแบบรายการ' });
   toList.onclick = () => { deckList = true; render(); };
-  const wrap = el('div', { className: 'deck' }, el('div', { className: 'top' }, el('span', { textContent: `เหลือ ${list.length} คน` }), toList));
+  const pos = list.indexOf(r) + 1; // skipped ones before this card count as passed
+  const top = r ? `คนที่ ${pos} / ${list.length} · เหลืออีก ${list.length - pos} คน` : `เหลือ ${list.length} คน`;
+  const wrap = el('div', { className: 'deck' }, el('div', { className: 'top' }, el('span', { textContent: top }), toList));
   if (!r) return wrap.append(el('div', { className: 'empty', textContent: 'ให้คะแนนครบทุกคนแล้ว 🎉' })), wrap;
 
   const c = el('article', { className: 'card swipe' });
