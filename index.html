@@ -255,14 +255,16 @@ function visible() {
   const q = $('q').value.trim().toLowerCase(), d = today();
   let list = rows.filter(r => {
     if (filter === 'today' && r.added !== d) return false;
-    if (filter === 'unscored' && (scored(r) || r.skip)) return false; // stays in the list until all 3 scores are in; skipped ones wait in ข้ามไว้
+    if (filter === 'unscored' && scored(r)) return false; // stays in the list until all 3 scores are in; people in ข้ามไว้ come round again at the end
     if (filter === 'scored' && !scored(r)) return false;
     if (filter === 'skip' && !r.skip) return false;
     if (filter === 'todo' && (r.result || 'ยังไม่ติดต่อ') !== 'ยังไม่ติดต่อ') return false;
     if (filter === 'appt' && !(r.date && r.date >= d)) return false;
     return !q || [r.name, r.contact, r.job, r.note, r.topic].join(' ').toLowerCase().includes(q);
   });
-  return filter === 'appt' ? list.sort((a, b) => a.date < b.date ? -1 : 1) : list.sort((a, b) => a.rank - b.rank);
+  return filter === 'appt' ? list.sort((a, b) => a.date < b.date ? -1 : 1)
+    : filter === 'unscored' ? list.sort((a, b) => !b.skip - !a.skip || a.rank - b.rank)
+    : list.sort((a, b) => a.rank - b.rank);
 }
 
 // computer = table (like the original program), phone = cards
@@ -377,7 +379,7 @@ const passed = new Set(); // ids swiped past in the deck: only moved to the back
 function deck(list) {
   let queue = list.filter(x => !passed.has(x.id));
   if (!queue.length && list.length) { passed.clear(); queue = list; } // went through everyone: the passed ones come round again
-  const r = queue[0], parked = rows.filter(x => x.skip && !scored(x)).length;
+  const r = queue[0], parked = 0; // people in ข้ามไว้ are in the queue too now (at the end)
   const toList = el('button', { className: 'ghost', textContent: 'ดูแบบรายการ' });
   toList.onclick = () => { deckList = true; render(); };
   const pos = parked + list.length - queue.length + 1; // people set aside in ข้ามไว้ or passed count as behind you
