@@ -191,6 +191,7 @@
   <div class="chips" role="group" aria-label="ตัวกรอง">
     <button class="chip" data-f="all" aria-pressed="true">ทั้งหมด</button>
     <button class="chip" data-f="today" aria-pressed="false">เพิ่มใหม่วันนี้</button>
+    <button class="chip" data-f="scored" aria-pressed="false">ให้คะแนนแล้ว</button>
     <button class="chip" data-f="unscored" aria-pressed="false">ยังไม่ให้คะแนน</button>
     <button class="chip" data-f="todo" aria-pressed="false">ยังไม่ติดต่อ</button>
     <button class="chip" data-f="appt" aria-pressed="false">มีนัด</button>
@@ -254,6 +255,7 @@ function visible() {
   let list = rows.filter(r => {
     if (filter === 'today' && r.added !== d) return false;
     if (filter === 'unscored' && (scored(r) || r.skip)) return false; // stays in the list until all 3 scores are in; skipped ones wait in ข้ามไว้
+    if (filter === 'scored' && !scored(r)) return false;
     if (filter === 'skip' && !r.skip) return false;
     if (filter === 'todo' && (r.result || 'ยังไม่ติดต่อ') !== 'ยังไม่ติดต่อ') return false;
     if (filter === 'appt' && !(r.date && r.date >= d)) return false;
