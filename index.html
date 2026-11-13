@@ -357,7 +357,7 @@ function faceCrop(pic, x1, y1, x2, y2) {
 
 // ---------- phone scoring deck ----------
 let deckList = false; // user chose the normal list
-// "ข้ามไว้": skip column holds the date a person was set aside (swipe right here, or told to the LINE bot); '' = pulled back
+// "ข้ามไว้": skip column holds the date a person was set aside (only via the LINE bot; swiping in the deck does not set it); '' = pulled back
 async function setSkipped(r, on) {
   const before = r.skip; r.skip = on ? today() : '';
   try { const saved = await run('updateField', r.id, 'skip', r.skip); if (saved) r.skip = saved.skip; return true; }
@@ -373,12 +373,15 @@ function unskipButton(r) {
   return b;
 }
 const useDeck = () => filter === 'unscored' && !wide.matches && !deckList && !selecting;
+const passed = new Set(); // ids swiped past in the deck: only moved to the back of the queue, never into ข้ามไว้ (that is for LINE "ข้าม" only)
 function deck(list) {
-  const r = list[0], parked = rows.filter(x => x.skip && !scored(x)).length;
+  let queue = list.filter(x => !passed.has(x.id));
+  if (!queue.length && list.length) { passed.clear(); queue = list; } // went through everyone: the passed ones come round again
+  const r = queue[0], parked = rows.filter(x => x.skip && !scored(x)).length;
   const toList = el('button', { className: 'ghost', textContent: 'ดูแบบรายการ' });
   toList.onclick = () => { deckList = true; render(); };
-  const pos = parked + 1; // people set aside in ข้ามไว้ count as passed
-  const top = r ? `คนที่ ${pos} / ${list.length + parked} · เหลืออีก ${list.length - 1} คน` : `เหลือ ${list.length} คน`;
+  const pos = parked + list.length - queue.length + 1; // people set aside in ข้ามไว้ or passed count as behind you
+  const top = r ? `คนที่ ${pos} / ${list.length + parked} · เหลืออีก ${queue.length - 1} คน` : `เหลือ ${list.length} คน`;
   const wrap = el('div', { className: 'deck' }, el('div', { className: 'top' }, el('span', { textContent: top }), toList));
   if (!r) return wrap.append(el('div', { className: 'empty', textContent: 'ให้คะแนนครบทุกคนแล้ว 🎉' + (parked ? `\nข้ามไว้ ${parked} คน — ดูได้ที่ปุ่ม "ข้ามไว้"` : '') })), wrap;
 
@@ -386,7 +389,7 @@ function deck(list) {
   let gone = false;
   const go = skip => { // card flies off (right = skipped, up-left = scored), then the next one comes in
     if (gone) return; gone = true;
-    if (skip) setSkipped(r, true).then(ok => ok && toast(`ย้าย${r.name ? ' ' + r.name : ''} ไปไว้ใน ข้ามไว้ แล้ว ✓`));
+    if (skip) passed.add(r.id);
     // skipped: flies off to the right. saved: flashes green and drops down, like filing it away
     const out = skip ? [{ transform: c.style.transform || 'none' }, { transform: 'translateX(120%) rotate(12deg)', opacity: 0 }]
       : [{ transform: 'none', boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)' }, { transform: 'translateY(-12px)', boxShadow: '0 0 0 2px #4ade80, 0 0 28px rgba(74,222,128,.6)', offset: .3 },
@@ -463,7 +466,7 @@ function deck(list) {
   };
   c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
   c.addEventListener('click', e => { if (dragging) { e.stopPropagation(); e.preventDefault(); } }, true); // a drag that ends on a button is not a tap
-  wrap.append(c, el('div', { className: 'hint', textContent: 'กดคะแนนให้ครบ 3 ข้อ · ปัดขวา = ข้ามไว้ก่อน · ปัดซ้าย = ลบ' }));
+  wrap.append(c, el('div', { className: 'hint', textContent: 'กดคะแนนให้ครบ 3 ข้อ · ปัดขวา = ข้ามไปคนถัดไป · ปัดซ้าย = ลบ' }));
   return wrap;
 }
 
