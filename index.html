@@ -134,6 +134,7 @@
   .deck .who { display:flex; align-items:center; gap:12px; } .deck .who .avatar { width:64px; height:64px; border-width:2px; }
   #toast.ok { background:#16a34a; color:#fff; }
   button.pull { background:#16a34a; border-color:#22c55e; color:#fff; white-space:nowrap; } /* ↩ ดึงกลับ */
+  .card > button.pull { display:block; margin-top:8px; }
   .acts { display:flex; gap:6px; align-items:center; justify-content:flex-end; }
   #toast.del { background:#dc2626; color:#fff; }
 
@@ -517,7 +518,7 @@ function card(r) {
     field('อาชีพ', 'job'), field('รายได้', 'income'), field('เรื่องที่อยากคุย', 'topic', 'area'),
     field('ช่องทางติดต่อ', 'channel', 'channel'), field('ข้อมูลติดต่อ (คั่นด้วย ,)', 'contact'), field('หมายเหตุ', 'note', 'area')));
 
-  c.append(el('div', { className: 'head' }, rank, ...[avatar(r, 36)].filter(Boolean), name, badge, ...(r.skip && !selecting ? [unskipButton(r)] : []), del), links, scores,
+  c.append(el('div', { className: 'head' }, rank, ...[avatar(r, 36)].filter(Boolean), name, badge, del), ...(r.skip && !selecting ? [unskipButton(r)] : []), links, scores, // ดึงกลับ on its own row so the name keeps its width on phones
     el('div', { className: 'row2' }, el('label', { className: 'f' }, 'ผลการติดต่อ', result), el('label', { className: 'f' }, 'ลงนัดวันที่', date)), more);
   shownEl.set(r, { el: c, refresh });
   return c;
